@@ -30,8 +30,8 @@ Uses **Scene-Shot two-layer structure**: `scenes[] → shots[]`
 
 | Level | Purpose | Naming Convention | Example |
 |-------|---------|-------------------|---------|
-| **Element ID** | Technical ID, used for JSON reference, character identifier in Prompt | `Element_` + English name/Pinyin | `Element_Chuyue`, `Element_Xiaomei` |
-| **Display Name** | Display name, used for user interaction, Chinese description | Chinese name | `Chuyue`, `Xiaomei` |
+| **Element ID** | Technical ID, used for JSON reference, character identifier in Prompt | `Element_` + English name/Pinyin | `Element_Chuyue`, `Element_Emma` |
+| **Display Name** | Display name, used for user interaction, Chinese description | Chinese name | `Chuyue`, `Emma` |
 | **Reference Tag** | Placeholder in Prompt (auto-mapped) | `<<<image_N>>>` | `<<<image_1>>>`, `<<<image_2>>>` |
 
 ### Usage in Workflow
@@ -210,9 +210,9 @@ When shot contains dialogue, **must fully describe in video_prompt**: character 
 ```json
 {
   "shot_id": "scene1_shot5",
-  "video_prompt": "Xiaomei (a 25-year-old Asian woman with long black hair) looks up at the server, smiling gently and says, 'It's really quiet here, I like it.' Clear, pleasant voice, moderate pace. Keep 9:16 vertical composition.",
+  "video_prompt": "Emma (a 25-year-old Asian woman with long black hair) looks up at the server, smiling gently and says, 'It's really quiet here, I like it.' Clear, pleasant voice, moderate pace. Keep 9:16 vertical composition.",
   "dialogue": {
-    "speaker": "Xiaomei",
+    "speaker": "Emma",
     "content": "It's really quiet here, I like it.",
     "emotion": "gentle, pleasant",
     "voice_type": "clear female voice"
@@ -220,7 +220,7 @@ When shot contains dialogue, **must fully describe in video_prompt**: character 
   "audio": {
     "enabled": true,
     "dialogue": {
-      "speaker": "Xiaomei",
+      "speaker": "Emma",
       "text": "It's really quiet here, I like it.",
       "emotion": "gentle, pleasant"
     },
@@ -443,8 +443,8 @@ Define `bgm` field in creative.json:
   "shot_id": "scene2_shot1",
   "generation_mode": "omni-video",
   "generation_backend": "kling-omni",
-  "video_prompt": "Xiaomei (<<<image_1>>>), wearing headphones, fully focused at racing simulator. 9:16 vertical composition.",
-  "reference_images": ["materials/personas/xiaomei_ref.jpg"],
+  "video_prompt": "Emma (<<<image_1>>>), wearing headphones, fully focused at racing simulator. 9:16 vertical composition.",
+  "reference_images": ["materials/personas/emma_ref.jpg"],
   "frame_strategy": "none",
   "image_prompt": "Cinematic realistic start frame... (optional, for storyboard image generation)",
   "multi_shot": false,
@@ -650,7 +650,7 @@ When generating storyboard in Phase 3, recommend reserving degradation plan for 
   "generation_mode": "omni-video",
   "generation_backend": "kling-omni",
   "video_prompt": "...",
-  "reference_images": ["materials/personas/xiaomei_ref.jpg"],
+  "reference_images": ["materials/personas/emma_ref.jpg"],
   "frame_strategy": "none",
 
   "fallback_plan": {
@@ -696,8 +696,8 @@ When degradation needed:
   "shot_id": "scene1_shot1",
   "generation_mode": "omni-video",
   "generation_backend": "kling-omni",
-  "video_prompt": "Xiaomei (<<<image_1>>>), by coffee shop window...",
-  "reference_images": ["materials/personas/xiaomei_ref.jpg"],
+  "video_prompt": "Emma (<<<image_1>>>), by coffee shop window...",
+  "reference_images": ["materials/personas/emma_ref.jpg"],
   "frame_strategy": "none",
   "fallback_plan": {
     "mode": "img2video",
@@ -712,7 +712,7 @@ When degradation needed:
   "shot_id": "scene1_shot1",
   "generation_mode": "img2video",
   "generation_backend": "kling",
-  "video_prompt": "Xiaomei, by coffee shop window...",  // Remove <<<image_1>>> reference
+  "video_prompt": "Emma, by coffee shop window...",  // Remove <<<image_1>>> reference
   "reference_images": [],
   "frame_strategy": "first_frame_only",
   "image_prompt": "Cinematic start frame. 25-year-old Asian female...",

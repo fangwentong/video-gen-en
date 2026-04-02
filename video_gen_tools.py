@@ -2013,8 +2013,8 @@ class PersonaManager:
 
     Usage:
         manager = PersonaManager(project_dir)
-        manager.register("Xiaomei", "female", "path/to/reference.jpg", "long hair, round face, glasses")
-        ref_path = manager.get_reference("Xiaomei")
+        manager.register("Emma", "female", "path/to/reference.jpg", "long hair, round face, glasses")
+        ref_path = manager.get_reference("Emma")
     """
 
     def __init__(self, project_dir: str = None):

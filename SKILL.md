@@ -125,10 +125,10 @@ from video_gen_tools import PersonaManager
 manager = PersonaManager(project_dir)
 
 # Case A: User provided reference image
-manager.register("Xiaomei", "female", "path/to/ref.jpg", "long hair, oval face")
+manager.register("Emma", "female", "path/to/ref.jpg", "long hair, oval face")
 
 # Case B: User did not provide reference image (Phase 2 will supplement)
-manager.register("SunWukong", "male", None, "monkey face, golden headband, tiger skin skirt")
+manager.register("Marcus", "male", None, "short brown hair, athletic build, casual clothes")
 ```
 
 **Phase 1 Key Principles**:
@@ -148,13 +148,13 @@ Create project directory `~/video-gen-projects/{project_name}_{timestamp}/`, out
 {
   "personas": [
     {
-      "name": "SunWukong",
+      "name": "Marcus",
       "gender": "male",
       "reference_image": null,
       "features": "monkey face, golden fur, fiery eyes, wearing golden armor"
     },
     {
-      "name": "Xiaomei",
+      "name": "Emma",
       "gender": "female",
       "reference_image": "/path/to/ref.jpg",
       "features": "long hair, oval face"
@@ -339,16 +339,16 @@ storyboard["character_image_mapping"] = image_mapping
   "elements": {
     "characters": [
       {
-        "element_id": "Element_SunWukong",
-        "name": "SunWukong",
-        "name_en": "SunWukong",
-        "reference_images": ["materials/personas/SunWukong_ref.png"],
+        "element_id": "Element_Marcus",
+        "name": "Marcus",
+        "name_en": "Marcus",
+        "reference_images": ["materials/personas/Marcus_ref.png"],
         "visual_description": "monkey face, golden fur..."
       }
     ]
   },
   "character_image_mapping": {
-    "Element_SunWukong": "image_1"
+    "Element_Marcus": "image_1"
   }
 }
 ```
@@ -542,8 +542,8 @@ API Fail → Determine error type →
 python video_gen_tools.py video \
   --backend kling-omni \
   --aspect-ratio {aspect_ratio} \
-  --prompt "SunWukong waving golden staff..." \
-  --image-list materials/personas/sunwukong_ref.png \
+  --prompt "Marcus walking confidently..." \
+  --image-list materials/personas/marcus_ref.png \
   --audio \
   --output generated/videos/scene1_shot1.mp4
 ```

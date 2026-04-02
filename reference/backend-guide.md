@@ -186,11 +186,11 @@ python video_gen_tools.py video --backend kling-omni \
   "shot_id": "scene1_shot2",
   "generation_mode": "omni-video",
   "generation_backend": "kling-omni",
-  "video_prompt": "Xiaomei and Xiaoming converse in coffee shop...",
+  "video_prompt": "Emma and Alex converse in coffee shop...",
   "reference_images": [
     "generated/frames/scene1_shot2_frame.png",
-    "/path/to/xiaomei_ref.jpg",
-    "/path/to/xiaoming_ref.jpg"
+    "/path/to/emma_ref.jpg",
+    "/path/to/alex_ref.jpg"
   ],
   "frame_strategy": "frame_as_reference"
 }
@@ -214,7 +214,7 @@ Character reference image → Gemini generates storyboard image (specifies scene
 
 ```bash
 python video_gen_tools.py image \
-  --prompt "Xiaomei (25-year-old Asian female, long straight black hair, oval face) sits by coffee shop window, looking up smiling, afternoon sunlight, cinematic, 9:16 vertical composition" \
+  --prompt "Emma (25-year-old Asian female, long straight black hair, oval face) sits by coffee shop window, looking up smiling, afternoon sunlight, cinematic, 9:16 vertical composition" \
   --reference <reference_image_path> \
   --output generated/storyboard/scene1_shot2_frame.png
 ```
@@ -224,7 +224,7 @@ python video_gen_tools.py image \
 ```bash
 python video_gen_tools.py video \
   --image generated/storyboard/scene1_shot2_frame.png \
-  --prompt "Xiaomei looks up at server, smiling gently and says: 'It's really quiet here, I like it.'" \
+  --prompt "Emma looks up at server, smiling gently and says: 'It's really quiet here, I like it.'" \
   --backend kling --audio \
   --output generated/videos/scene1_shot2.mp4
 ```
@@ -235,7 +235,7 @@ python video_gen_tools.py video \
 
 ```bash
 python video_gen_tools.py image \
-  --prompt "Xiaomei and Xiaoming walk side by side on street, warm golden light, 9:16 vertical composition" \
+  --prompt "Emma and Alex walk side by side on street, warm golden light, 9:16 vertical composition" \
   --reference <secondary_character_ref> <main_character_ref> \
   --output generated/storyboard/scene2_shot1_frame.png
 ```
@@ -250,9 +250,9 @@ python video_gen_tools.py image \
   "generation_mode": "img2video",
   "generation_backend": "kling",
   "frame_strategy": "first_frame_only",
-  "image_prompt": "Xiaomei sits by coffee shop window, looking up smiling, 9:16 vertical composition",
-  "video_prompt": "Xiaomei looks up at server, smiling gently...",
-  "reference_personas": ["Xiaomei"]
+  "image_prompt": "Emma sits by coffee shop window, looking up smiling, 9:16 vertical composition",
+  "video_prompt": "Emma looks up at server, smiling gently...",
+  "reference_personas": ["Emma"]
 }
 ```
 
@@ -269,8 +269,8 @@ Must include:
 
 **Example**:
 ```
-Reference for Xiaomei: MUST preserve exact appearance - 25-year-old Asian female, long straight black hair, oval face
-Xiaomei sits by cozy coffee shop window, wearing beige knit sweater, afternoon sunlight streaming through windows,
+Reference for Emma: MUST preserve exact appearance - 25-year-old Asian female, long straight black hair, oval face
+Emma sits by cozy coffee shop window, wearing beige knit sweater, afternoon sunlight streaming through windows,
 cinematic tones, shallow depth of field background blur, vertical composition, 9:16 aspect ratio, character centered in frame
 ```
 
