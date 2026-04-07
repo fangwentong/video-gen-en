@@ -30,7 +30,7 @@ A Claude Code Skill that brings AI video editing capabilities into your conversa
 - ✅ **Creative Generation** - Interactive question cards, customized video creative plans
 - ✅ **Storyboard Design** - Generate storyboard scripts and video generation prompts
 - ✅ **AI Video Generation**
-  - **Seedance**: 5/10/15s, smart shot cutting, multi-reference (up to 9 images)
+  - **Seedance**: 4-15s (any integer), smart shot cutting, multi-reference (up to 12 images), audio reference
   - **Kling v3**: 3-15s, precise first frame control, good visual quality
   - **Kling v3 Omni**: 3-15s, multi-reference images, best character consistency
   - **Vidu Q3 Pro** (fallback): image-to-video/text-to-video (5-10s)
@@ -131,7 +131,7 @@ python video_gen_tools.py image --prompt "<description>" --style cinematic --out
 
 | Backend | Model | Duration | Features |
 |------|------|------|------|
-| **Seedance** | seedance-2.0 | 5/10/15s | Smart shot cutting, multi-reference (up to 9 images), audio-video sync output |
+| **Seedance** | seedance-2 | 4-15s (any integer) | Smart shot cutting, multi-reference (up to 12 images), audio reference (mp3/wav), first-last frame control |
 | **Kling Omni** | kling-3.0-omni | 3-15s | multi-reference images(reference2video)、best character consistency、audio-video sync output |
 | **Kling** | kling-3.0 | 3-15s | precise first frame control(img2video)、good visual quality |
 | **Vidu**（fallback） | vidu-q3-pro | 5-10s | stable, fast, first frame control |

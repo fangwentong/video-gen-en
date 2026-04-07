@@ -609,30 +609,28 @@ Both Kling and Kling Omni support multi-shot single-take.
 
 **Core Feature**: Time-segmented prompt auto triggers multi-shot, execution phase merges multiple shots in same scene into one API call.
 
-**⚠️ Key Limit: Duration can only be 5/10/15s (enum values)**
+**✅ Duration Support: 4-15s any integer**
 
-In **Phase 3 Storyboard Design Phase**, when choosing Seedance backend, must ensure each scene's total duration is **5, 10 or 15 seconds** (only these three values, not other durations like 8s, 12s).
+In **Phase 3 Storyboard Design Phase**, when choosing Seedance backend, scene total duration can be **any integer from 4 to 15 seconds** (e.g., 6s, 8s, 12s, no longer limited to 5/10/15).
 
 ### Duration Planning in Design Phase (Phase 3)
 
 **Seedance Backend Duration Design Rules**:
 
-| Scene Total Duration | ✅ Allowed | ❌ Not Allowed |
-|---------------------|------------|----------------|
-| 5s | ✓ | - |
-| 10s | ✓ | - |
-| 15s | ✓ | - |
-| 8s, 12s, 18s etc. | - | ✗ (API doesn't support) |
+| Scene Total Duration | ✅ Supported |
+|---------------------|--------------|
+| 4-15s any integer | ✓ |
 
 **Design Flow**:
 ```
-Choose Seedance → Determine scene total duration (must be 5/10/15) → Allocate shot durations
+Choose Seedance → Determine scene total duration (4-15s any integer) → Allocate shot durations
 ```
 
 **Example**:
 - Target 15s scene → shots: 3s + 3s + 4s + 5s = 15s ✓
 - Target 10s scene → shots: 3s + 3s + 4s = 10s ✓
-- Target 18s scene → ✗ Not allowed, need to split into 15s + 3s (second segment needs separate processing)
+- Target 8s scene → shots: 3s + 5s = 8s ✓ (newly supported!)
+- Target 18s scene → ✗ Exceeds range, need to split into two scenes
 
 ### Design Principles
 
@@ -728,10 +726,9 @@ Maintain {aspect_ratio} composition, don't break aspect ratio
 
 | Limitation | Description |
 |------------|-------------|
-| Duration only supports 5/10/15s | Only these three enum values, no other durations |
+| Duration range 4-15s | Any integer, no longer limited to 5/10/15 |
 | Max 720p | Use Kling/Vidu when 1080p needed |
 | No first frame precise control | Storyboard image is reference, not first frame |
-| No reference audio | Cannot use audio_urls parameter |
 | Image reference syntax | Use `@imageN` (not `<<<image_N>>>`) |
 
 ---

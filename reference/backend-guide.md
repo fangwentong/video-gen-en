@@ -18,11 +18,12 @@
 | Feature | Vidu | Kling | Kling Omni | **Seedance** |
 |---------|------|-------|------------|--------------|
 | **Backend Name** | `vidu` | `kling` | `kling-omni` | `seedance` |
-| **Text-to-video** | 5-10s | 3-15s | 3-15s | **5/10/15s** |
+| **Text-to-video** | 5-10s | 3-15s | 3-15s | **4-15s (any integer)** |
 | **Image-to-video** | Single image | First frame image (precise control) | Use image_list instead | Storyboard + reference images |
-| **image_list Multiple Reference Images** | -- | -- | `<<<image_1>>>` reference | **`@image1` reference (up to 9 images)** |
+| **image_list Multiple Reference Images** | -- | -- | `<<<image_1>>>` reference | **`@image1` reference (up to 12 images)** |
 | **Smart Shot Cutting** | -- | multi-shot parameter | multi-shot parameter | **Time-segmented prompt auto triggers** |
-| **First/Last Frame Control** | -- | `--image` + `--tail-image` | -- | -- (Storyboard as reference) |
+| **First/Last Frame Control** | -- | `--image` + `--tail-image` | -- | `--mode first_last_frames` |
+| **Audio Reference** | -- | -- | -- | **✓ audio_urls (mp3/wav ≤15s)** |
 | **Audio-Video Together** | -- | `--audio` | `--audio` | **✓ Default audio generation** |
 | **Max Resolution** | 1080p | 1080p | 1080p | **720p** ⚠️ |
 | **Best Scenario** | Simple fast, fallback | First frame precise control, scene consistency | Character consistency, multi-character | **Fiction/shorts, smart shot cutting** |
@@ -86,17 +87,19 @@
 | `model` | `"seedance"` | Fixed value |
 | `task_type` | `"seedance-2-fast"` / `"seedance-2"` | Fast / High quality |
 | `prompt` | Text description | Supports `@imageN` image reference, supports time segments |
-| `duration` | 5 / 10 / 15 | Seconds (only these three enum values) |
-| `aspect_ratio` | 16:9/9:16/4:3/3:4 | Four ratios |
-| `image_urls` | Array | Up to 9 reference images |
+| `duration` | **4-15 (any integer)** | Seconds (range 4-15) |
+| `aspect_ratio` | 21:9/16:9/4:3/1:1/3:4/9:16/auto | Six ratios + auto |
+| `image_urls` | Array | Up to 12 reference images |
+| `video_urls` | Array | Up to 1 video reference (omni_reference mode) |
+| `audio_urls` | Array | mp3/wav, ≤15s (omni_reference mode) |
 
 ### Output Specifications
 
 | Spec | Value |
 |------|-------|
-| Duration | 5/10/15s (only three enum values) |
+| Duration | 4-15s (any integer) |
 | Resolution | 480p / 720p (max 720p) ⚠️ |
-| Audio | Auto generated (AAC stereo) |
+| Audio | Auto generated (AAC stereo) + reference audio support |
 
 ### Time-segmented Prompt Syntax
 
