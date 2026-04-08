@@ -29,6 +29,21 @@ python ~/.claude/skills/video-gen/video_gen_tools.py video --backend kling-omni 
 # Auto backend selection (providing --image-list auto-uses kling-omni, providing --tail-image auto-uses kling)
 python ~/.claude/skills/video-gen/video_gen_tools.py video --prompt "<<<image_1>>> on the field" --image-list ref.jpg --output out.mp4
 
+# Seedance 2 auto-assembly mode (Recommended: auto-calculate time segments, assemble prompt, arrange image_urls from storyboard)
+python ~/.claude/skills/video-gen/video_gen_tools.py video --backend seedance --storyboard storyboard/storyboard.json --scene scene_1 --output generated/videos/scene_1.mp4
+
+# Seedance 2 manual mode (fallback)
+python ~/.claude/skills/video-gen/video_gen_tools.py video --backend seedance --prompt "Time-segmented prompt..." --image-list frame.png ref.jpg --duration 8 --output out.mp4
+
+# Seedance 2 first-last frame control mode
+python ~/.claude/skills/video-gen/video_gen_tools.py video --backend seedance --mode first_last_frames --image-list <first-frame> <last-frame> --prompt "Action description" --duration 5 --output out.mp4
+
+# Veo3 text-to-video (Google Veo3, only supports 4/6/8s)
+python ~/.claude/skills/video-gen/video_gen_tools.py video --backend veo3 --prompt "Description..." --duration 8 --output out.mp4
+
+# Veo3 image-to-video (first frame control)
+python ~/.claude/skills/video-gen/video_gen_tools.py video --backend veo3 --image first_frame.png --prompt "Description..." --duration 8 --output out.mp4
+
 # Music generation
 python ~/.claude/skills/video-gen/video_gen_tools.py music --prompt <description> --style <style> --output <output>
 
@@ -57,6 +72,50 @@ python ~/.claude/skills/video-gen/video_gen_tools.py vision <directory-path> --b
 | `--multi-prompt` | kling, kling-omni | Custom shot list (JSON format) |
 | `--audio` | kling, kling-omni | Enable audio-video sync output |
 | `--mode` | kling, kling-omni | `std` (standard) or `pro` (high quality) |
+
+### Seedance 2 Parameter Reference
+
+| Parameter | Description |
+|------|------|
+| `--backend seedance` | Use Seedance 2 backend |
+| `--storyboard` + `--scene` | Auto-assembly mode: read scene from storyboard, auto-calculate time segments, assemble prompt, arrange image_urls, align duration |
+| `--prompt` | Manual mode: directly specify time-segmented prompt (fallback) |
+| `--image-list` | Manual mode: image list (storyboard frame first, character references after) |
+| `--duration` | Duration: **4-15s (any integer)** |
+| `--mode` | Generation mode: `text_to_video` (default) / `first_last_frames` (first-last frame) / `omni_reference` (multi-reference) |
+| `--audio-urls` | Audio reference URL list (optional) |
+| `--video-urls` | Video reference URL list (optional) |
+| `--aspect-ratio` | Aspect ratio: **16:9/9:16/4:3/3:4/21:9** |
+
+### Veo3 Parameter Reference
+
+| Parameter | Description |
+|------|------|
+| `--backend veo3` | Use Veo3 backend (requires COMPASS_API_KEY) |
+| `--prompt` | Video description |
+| `--image` | Optional: first frame image path (image-to-video mode) |
+| `--duration` | Duration: only supports 4/6/8 seconds (auto-aligns to nearest) |
+| `--aspect-ratio` | Aspect ratio |
+| `--output` | Output file path |
+
+**Note**: Veo3 generates audio by default, no `--audio` parameter needed. Does not support `--image-list`, `--multi-shot`, `--tail-image`.
+
+### validate Parameter Reference
+
+| Parameter | Description |
+|------|------|
+| `--storyboard` | storyboard.json path (required) |
+
+**Validation Content**:
+- Schema: `scenes[]`, `aspect_ratio` existence
+- Seedance: scene total duration within **4-15s range**
+- Veo3: single shot duration must be 4/6/8
+- Kling/Vidu: single shot duration range
+- Backend-mode consistency
+- Reference image file existence
+- API key availability
+
+**Output Format**: `{"valid": bool, "errors": [...], "warnings": [...]}`
 
 ---
 

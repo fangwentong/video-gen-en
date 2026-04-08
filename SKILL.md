@@ -113,14 +113,66 @@ Task Progress:
 
 ---
 
-## Phase 0: Environment Check
+## Phase 0: Provider Configuration + Environment Check
+
+### Step 1: Select Video Generation Provider
+
+**Must complete API configuration before starting any work. Cannot enter Phase 1 without available API key.**
+
+First run setup to check current configuration status:
+
+```bash
+python ~/.claude/skills/video-gen/video_gen_tools.py setup
+```
+
+Output includes all available providers and their key configuration status. **If no video provider key is configured**, must guide user to select and configure:
+
+**Show options card to user**:
+
+> Please select video generation API (can change later):
+>
+> **1. Seedance (Recommended)** — ByteDance, smart shot cutting + multi-reference, suitable for fiction/short drama/MV
+>    - Requires: Seedance API Key (from piapi.ai)
+>
+> **2. Kling Official** — Kuaishou, precise first frame control, suitable for realistic/commercial videos
+>    - Requires: Kling Access Key + Secret Key (from klingai.kuaishou.com)
+>
+> **3. Kling via fal.ai** — Bypass official concurrency limits
+>    - Requires: fal.ai API Key (from fal.ai)
+>
+> **4. Veo3 via Compass** — Google Veo3, high quality realistic shorts (4/6/8s)
+>    - Requires: Compass API Key (from compass.llm.shopee.io)
+
+After user selection, request corresponding API key, then save:
+
+```bash
+# Example: User selects Seedance
+python ~/.claude/skills/video-gen/video_gen_tools.py setup --set-key SEEDANCE_API_KEY=sk-xxx
+
+# Example: User selects Kling Official
+python ~/.claude/skills/video-gen/video_gen_tools.py setup --set-key KLING_ACCESS_KEY=xxx KLING_SECRET_KEY=xxx
+
+# Example: User selects fal
+python ~/.claude/skills/video-gen/video_gen_tools.py setup --set-key FAL_API_KEY=xxx
+
+# Example: User selects Veo3
+python ~/.claude/skills/video-gen/video_gen_tools.py setup --set-key COMPASS_API_KEY=xxx
+```
+
+**Optional Services** (ask after saving key):
+- Music generation (Suno): `SUNO_API_KEY`
+
+User can skip optional services.
+
+### Step 2: Environment Check
 
 ```bash
 python ~/.claude/skills/video-gen/video_gen_tools.py check
 ```
 
 - Basic dependencies (FFmpeg/Python/httpx) fail → Stop and provide installation instructions
-- API key not configured → Record status, ask later as needed
+- **At least one video provider API key configured** → Continue
+- **No video API key** → Return to Step 1, cannot continue
 
 ---
 
@@ -261,7 +313,36 @@ Create project directory `~/video-gen-projects/{project_name}_{timestamp}/`, out
 
 **Important Principle**: For shots that can capture sync sound, do not use post-production TTS dubbing!
 
-### Question 6: Character Reference Image Collection
+### Question 6: Character Art Style Selection
+
+**Trigger Condition**: Fiction/short drama, MV clip type projects (Vlog/realistic defaults to realistic style).
+
+> **Please select character art style**
+> - **A. Realistic Style** — AI-generated character reference images use realistic actor style
+> - **B. Anime/2D Style** — AI-generated character reference images use anime style
+> - **C. Mixed Style** — Process per scene, realistic scenes and anime scenes have different styles
+
+**After selection, write to `creative.json`**:
+```json
+{
+  "visual_style": "realistic"  // realistic / anime / mixed
+}
+```
+
+**Explanation**:
+
+| visual_style | AI Reference Image Style | User Photo Processing (if any) |
+|--------------|--------------------------|-------------------------------|
+| `realistic` | Realistic actor style | Seedance needs 3-view conversion first, Kling-Omni can use directly |
+| `anime` | Anime/2D style | Can be used as reference directly |
+| `mixed` | Decide per scene | Realistic scene photos need conversion, anime scenes can use directly |
+
+**Key Understanding**:
+- **Pure creative mode (no user photos)**: visual_style only determines AI-generated reference image style, **does not affect backend selection**
+- **With user photos mode**: visual_style determines user photo processing (whether 3-view conversion needed)
+- **Backend selection basis**: Project needs (smart shot cutting vs character consistency vs first frame control), not visual_style
+
+### Question 7: Character Reference Image Collection
 
 **Trigger Condition**: Check personas.json, trigger when characters have `reference_image` as null/empty.
 
@@ -565,11 +646,24 @@ API Fail → Determine error type →
 
 | generation_mode | CLI Parameters |
 |-----------------|----------------|
+| `seedance-video` | `--backend seedance --aspect-ratio {aspect_ratio} --image-list {frame} {ref1} {ref2} ...` |
 | `omni-video` | `--backend kling-omni --aspect-ratio {aspect_ratio} --image-list {ref1} {ref2} ...` |
 | `img2video` | `--aspect-ratio {aspect_ratio} --image {frame_path}` |
 | `text2video` | `--aspect-ratio {aspect_ratio}` |
 
 **Important**: `{aspect_ratio}` read from `storyboard.json`'s `aspect_ratio` field.
+
+**Example (Seedance mode)**:
+```bash
+# Seedance smart shot cutting: storyboard frame + character reference images
+python video_gen_tools.py video \
+  --backend seedance \
+  --aspect-ratio 16:9 \
+  --prompt "Referencing the scene1_frame composition... @image1..." \
+  --image-list generated/frames/scene1_frame.png materials/personas/emma_ref.jpg \
+  --duration 10 \
+  --output generated/videos/scene1.mp4
+```
 
 **Example (Omni mode)**:
 ```bash
@@ -581,6 +675,50 @@ python video_gen_tools.py video \
   --image-list materials/personas/marcus_ref.png \
   --audio \
   --output generated/videos/scene1_shot1.mp4
+```
+
+### Seedance Execution Logic (Auto-assembly Mode)
+
+**When `generation_backend = "seedance"`, use `--scene` parameter to auto-assemble time-segmented prompt.**
+
+Tool automatically completes: time segment calculation, prompt format assembly, image_urls arrangement, duration validation (4-15s range).
+
+#### Execution Steps
+
+**Step 1: Generate Storyboard Frame**
+- Generate one storyboard frame per Seedance scene
+- Use Gemini + character reference images to generate
+- Save to `generated/frames/{scene_id}_frame.png`
+
+**Step 2: Call Auto-assembly**
+
+```bash
+python video_gen_tools.py video \
+  --backend seedance \
+  --storyboard storyboard/storyboard.json \
+  --scene scene_1 \
+  --output generated/videos/scene_1.mp4
+```
+
+Tool internally auto:
+1. Read scene's shots, calculate time offsets, assemble time-segmented prompt
+2. Parse character reference image order from `character_image_mapping`
+3. Assemble `image_urls` (storyboard frame first, character references after)
+4. Total duration within 4-15s range, any integer works
+
+**Key**: Ensure storyboard frame path is filled in shot's `reference_images`, and `video_prompt` includes camera movement + rhythm description.
+
+#### Manual Mode (Fallback)
+
+When auto-assembly doesn't meet needs, can still manually specify prompt:
+
+```bash
+python video_gen_tools.py video \
+  --backend seedance \
+  --prompt "Manually written time-segmented prompt..." \
+  --image-list frame.png ref.jpg \
+  --duration 10 \
+  --output output.mp4
 ```
 
 ### API Key Management
