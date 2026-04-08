@@ -2763,6 +2763,11 @@ class GeminiTTSClient:
                 "hint": "Please add COMPASS_API_KEY in config.json"
             }
 
+        # Auto-add speaking rate instruction for Chinese narration
+        if language_code == "cmn-CN" and not prompt:
+            prompt = "Speak at a slightly faster pace, crisp and clear, natural flow"
+            logger.info(f"Auto-added prompt for Chinese narration: {prompt}")
+
         # Get voice configuration
         voice_name = voice
         lang_code = language_code
@@ -2810,15 +2815,54 @@ class GeminiTTSClient:
             with open(output, "wb") as f:
                 f.write(response.audio_content)
 
-            # Estimate duration (approx 15KB/second)
-            duration_ms = int(len(response.audio_content) / 15 * 1000)
-            logger.info(f"Gemini TTS saved: {output} (approx {duration_ms}ms)")
+            # Get precise duration using ffprobe
+            duration = get_audio_duration(output)
+            duration_ms = int(duration * 1000)
+            logger.info(f"Gemini TTS saved: {output} ({duration:.2f}s)")
 
-            return {"success": True, "output": output, "duration_ms": duration_ms}
+            return {"success": True, "output": output, "duration": duration, "duration_ms": duration_ms}
 
         except Exception as e:
             logger.error(f"Gemini TTS failed: {e}")
             return {"success": False, "error": str(e)}
+
+
+def get_audio_duration(audio_path: str) -> float:
+    """
+    Get precise audio duration using ffprobe (in seconds)
+
+    Args:
+        audio_path: Path to audio file
+
+    Returns:
+        Duration in seconds (float)
+    """
+    import subprocess
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", audio_path],
+        capture_output=True, text=True
+    )
+    return float(result.stdout.strip())
+
+
+def get_video_duration(video_path: str) -> float:
+    """
+    Get precise video duration using ffprobe (in seconds)
+
+    Args:
+        video_path: Path to video file
+
+    Returns:
+        Duration in seconds (float)
+    """
+    import subprocess
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", video_path],
+        capture_output=True, text=True
+    )
+    return float(result.stdout.strip())
 
 
 # ============== Gemini Image Generation (via Yunwu API) ==============

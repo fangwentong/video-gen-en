@@ -893,6 +893,303 @@ async def add_narration(
         return {"success": False, "error": msg}
 
 
+def get_audio_duration_sync(audio_path: str) -> float:
+    """
+    Get precise audio duration using ffprobe (seconds)
+    Synchronous version, for calling within async functions
+    """
+    import subprocess
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", audio_path],
+        capture_output=True, text=True
+    )
+    return float(result.stdout.strip())
+
+
+def calculate_shot_times(storyboard: dict) -> dict:
+    """
+    Calculate start time for each shot
+
+    Returns:
+        {shot_id: start_time_in_seconds}
+    """
+    shot_times = {}
+    current_time = 0
+
+    for scene in storyboard.get("scenes", []):
+        for shot in scene.get("shots", []):
+            shot_id = shot["shot_id"]
+            shot_times[shot_id] = current_time
+            current_time += shot["duration"]
+
+    return shot_times
+
+
+def calculate_narration_times(
+    segments_info: list,
+    video_duration: float,
+    gap: float = 0.5
+) -> tuple:
+    """
+    Calculate non-overlapping narration time points
+
+    Args:
+        segments_info: List containing info for each narration segment
+        video_duration: Total video duration
+        gap: Gap between segments (seconds)
+
+    Returns:
+        (time_points, warnings)
+        - time_points: [{"start_time": x, "end_time": y, "skipped": bool}, ...]
+        - warnings: List of warning messages
+    """
+    time_points = []
+    warnings = []
+    current_time = 0  # End time of previous narration segment
+
+    # Calculate total narration duration
+    total_narration = sum(seg["duration"] for seg in segments_info)
+    total_gap = gap * (len(segments_info) - 1) if len(segments_info) > 1 else 0
+    required_duration = total_narration + total_gap
+
+    if required_duration > video_duration:
+        warnings.append(
+            f"Total narration ({total_narration:.1f}s) + gaps ({total_gap:.1f}s) = {required_duration:.1f}s, "
+            f"exceeds video duration ({video_duration:.1f}s). Will compress gaps and may skip some segments."
+        )
+
+    for i, seg in enumerate(segments_info):
+        duration = seg["duration"]
+        shot_start = seg.get("shot_start", 0)
+        seg_id = seg.get("segment_id", f"segment_{i+1}")
+
+        # Check if remaining space is sufficient
+        min_start = max(current_time, shot_start)
+        min_end = min_start + duration
+
+        if min_end > video_duration:
+            # Not enough space, skip this segment
+            warnings.append(f"{seg_id}: Insufficient space, skipped (needs {duration:.1f}s, remaining {video_duration - current_time:.1f}s)")
+            time_points.append({"start_time": 0, "end_time": 0, "skipped": True})
+            continue
+
+        # Calculate remaining available time and remaining segments
+        remaining_segments = len([s for s in segments_info[i:] if s.get("duration", 0) > 0])
+        remaining_narration = sum(s["duration"] for s in segments_info[i:])
+        remaining_gap = gap * (remaining_segments - 1) if remaining_segments > 1 else 0
+        remaining_required = remaining_narration + remaining_gap
+        remaining_available = video_duration - current_time
+
+        # Dynamically adjust gap if space is tight
+        effective_gap = gap
+        if remaining_required > remaining_available and remaining_segments > 1:
+            # Calculate minimum needed gap
+            needed_gap = (remaining_available - remaining_narration) / (remaining_segments - 1)
+            effective_gap = max(0, needed_gap)  # Can compress to 0
+
+        # Start time
+        start_time = max(current_time + effective_gap, shot_start)
+        end_time = start_time + duration
+
+        # Final check
+        if end_time > video_duration:
+            end_time = video_duration
+            warnings.append(f"{seg_id}: Truncated to video end")
+
+        time_points.append({"start_time": start_time, "end_time": end_time, "skipped": False})
+        current_time = end_time  # Update to current segment's end time
+
+    return time_points, warnings
+
+
+async def smart_narration_mix(
+    video_path: str,
+    narration_dir: str,
+    storyboard_path: str,
+    output: str,
+    bgm_path: str = None,
+    bgm_volume: float = 0.15,
+    narration_volume: float = 1.5,
+    gap: float = 0.5
+) -> Dict[str, Any]:
+    """
+    Smart narration mixing:
+    1. Read all narration audio and their precise durations (ffprobe)
+    2. Locate shot start time by target_shot
+    3. Calculate non-overlapping time points with gaps
+    4. Synthesize final audio
+
+    Args:
+        video_path: Video file path
+        narration_dir: Narration audio directory
+        storyboard_path: storyboard.json path
+        output: Output video path
+        bgm_path: Background music path (optional)
+        bgm_volume: BGM volume (default 0.15)
+        narration_volume: Narration volume (default 1.5)
+        gap: Gap between segments (seconds, default 0.5)
+
+    Returns:
+        {"success": True, "output": output, "segments_info": [...]}
+    """
+    if not os.path.exists(video_path):
+        return {"success": False, "error": f"Video not found: {video_path}"}
+
+    if not os.path.exists(storyboard_path):
+        return {"success": False, "error": f"storyboard.json not found: {storyboard_path}"}
+
+    # Read storyboard
+    with open(storyboard_path, 'r', encoding='utf-8') as f:
+        storyboard = json.load(f)
+
+    segments = storyboard.get("narration_segments", [])
+    if not segments:
+        logger.info("No narration segments, copying video directly")
+        import shutil
+        shutil.copy(video_path, output)
+        return {"success": True, "output": output, "skipped": True}
+
+    # Get video duration
+    video_duration = await get_video_duration(video_path)
+
+    # Get start time for each shot
+    shot_times = calculate_shot_times(storyboard)
+
+    # Collect precise duration for each narration segment
+    segments_info = []
+    for seg in segments:
+        seg_id = seg.get("segment_id", "")
+
+        # Find audio file
+        audio_file = None
+        possible_paths = [
+            os.path.join(narration_dir, f"{seg_id}.mp3"),
+            os.path.join(narration_dir, f"narr_{seg_id}.mp3"),
+            os.path.join(narration_dir, f"narration_{seg_id}.mp3"),
+        ]
+        for p in possible_paths:
+            if os.path.exists(p):
+                audio_file = p
+                break
+
+        if not audio_file:
+            logger.warning(f"Narration audio not found: {seg_id}")
+            continue
+
+        # Get precise duration
+        duration = get_audio_duration_sync(audio_file)
+
+        # Get corresponding shot start time
+        target_shot = seg.get("target_shot", "")
+        shot_start = shot_times.get(target_shot, 0)
+
+        segments_info.append({
+            "segment_id": seg_id,
+            "audio_path": audio_file,
+            "duration": duration,
+            "shot_start": shot_start,
+            "target_shot": target_shot,
+            "text": seg.get("text", "")[:30] + "..."
+        })
+
+    if not segments_info:
+        logger.warning("No valid narration audio")
+        import shutil
+        shutil.copy(video_path, output)
+        return {"success": True, "output": output, "warning": "No valid narration"}
+
+    # Calculate non-overlapping time points
+    time_points, warnings = calculate_narration_times(segments_info, video_duration, gap)
+
+    # Print warnings
+    for w in warnings:
+        logger.warning(w)
+
+    # Update segments_info, filter out skipped segments
+    active_segments = []
+    for i, tp in enumerate(time_points):
+        segments_info[i]["start_time"] = tp["start_time"]
+        segments_info[i]["end_time"] = tp["end_time"]
+        segments_info[i]["skipped"] = tp.get("skipped", False)
+
+        if tp.get("skipped"):
+            logger.warning(f"Skipped: {segments_info[i]['segment_id']}")
+        else:
+            logger.info(f"{segments_info[i]['segment_id']}: {tp['start_time']:.1f}s - {tp['end_time']:.1f}s ({segments_info[i]['duration']:.1f}s)")
+            active_segments.append(segments_info[i])
+
+    # Build FFmpeg command
+    Path(output).parent.mkdir(parents=True, exist_ok=True)
+
+    # If no active segments, copy video directly
+    if not active_segments:
+        logger.warning("No available narration segments, copying video directly")
+        import shutil
+        shutil.copy(video_path, output)
+        return {
+            "success": True,
+            "output": output,
+            "warning": "All narration segments skipped",
+            "segments_info": segments_info
+        }
+
+    cmd = ["ffmpeg", "-y"]
+    filter_parts = []
+    input_idx = 1
+
+    # Add video input
+    cmd.extend(["-i", video_path])
+
+    # Add narration inputs and build filter (only active_segments)
+    mix_inputs = ["[0:a]"]
+
+    for seg in active_segments:
+        cmd.extend(["-i", seg["audio_path"]])
+        delay_ms = int(seg["start_time"] * 1000)
+        filter_parts.append(
+            f"[{input_idx}:a]adelay={delay_ms}|{delay_ms},volume={narration_volume}[n{input_idx}]"
+        )
+        mix_inputs.append(f"[n{input_idx}]")
+        input_idx += 1
+
+    # Add BGM (if any)
+    if bgm_path and os.path.exists(bgm_path):
+        cmd.extend(["-i", bgm_path])
+        filter_parts.append(f"[{input_idx}:a]volume={bgm_volume}[bgm]")
+        mix_inputs.append("[bgm]")
+
+    # amix - Note: inputs are concatenated without commas
+    filter_parts.append(
+        f"{''.join(mix_inputs)}amix=inputs={len(mix_inputs)}:duration=first:normalize=0[aout]"
+    )
+
+    cmd.extend([
+        "-filter_complex", ";".join(filter_parts),
+        "-map", "0:v",
+        "-map", "[aout]",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-shortest",
+        output
+    ])
+
+    success, msg = await run_ffmpeg(cmd)
+
+    if success:
+        logger.info(f"Smart narration mix complete: {output}")
+        return {
+            "success": True,
+            "output": output,
+            "segments_count": len(active_segments),
+            "total_segments": len(segments_info),
+            "segments_info": segments_info,
+            "warnings": warnings if warnings else None
+        }
+    else:
+        return {"success": False, "error": msg}
+
+
 # ============== Command Line Entry ==============
 
 async def cmd_concat(args):
@@ -1053,6 +1350,22 @@ async def cmd_narration(args):
     return 0 if result.get("success") else 1
 
 
+async def cmd_smart_narration(args):
+    """Smart narration synthesis command"""
+    result = await smart_narration_mix(
+        video_path=args.video,
+        narration_dir=args.narration_dir,
+        storyboard_path=args.storyboard,
+        output=args.output,
+        bgm_path=args.bgm,
+        bgm_volume=args.bgm_volume,
+        narration_volume=args.narration_volume,
+        gap=args.gap
+    )
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result.get("success") else 1
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Vico Editor - FFmpeg video editing command-line tool",
@@ -1130,6 +1443,17 @@ def main():
     narration_parser.add_argument("--narration-volume", type=float, default=1.0, help="Narration volume")
     narration_parser.add_argument("--video-volume", type=float, default=1.0, help="Original video volume")
 
+    # smart-narration subcommand (Smart narration synthesis)
+    smart_narration_parser = subparsers.add_parser("smart-narration", help="Smart narration synthesis (auto-calculate time points, avoid overlap)")
+    smart_narration_parser.add_argument("--video", "-v", required=True, help="Input video")
+    smart_narration_parser.add_argument("--output", "-o", required=True, help="Output video path")
+    smart_narration_parser.add_argument("--storyboard", "-s", required=True, help="storyboard.json path")
+    smart_narration_parser.add_argument("--narration-dir", "-n", required=True, help="Narration audio directory")
+    smart_narration_parser.add_argument("--bgm", "-b", help="Background music path (optional)")
+    smart_narration_parser.add_argument("--bgm-volume", type=float, default=0.15, help="BGM volume (default 0.15)")
+    smart_narration_parser.add_argument("--narration-volume", type=float, default=1.5, help="Narration volume (default 1.5)")
+    smart_narration_parser.add_argument("--gap", type=float, default=0.5, help="Gap between narration segments (default 0.5s)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1147,6 +1471,7 @@ def main():
         "trim": cmd_trim,
         "image": cmd_image,
         "narration": cmd_narration,
+        "smart-narration": cmd_smart_narration,
     }
 
     return asyncio.run(commands[args.command](args))
