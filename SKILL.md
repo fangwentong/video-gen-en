@@ -1,6 +1,6 @@
 ---
 name: video-gen-en
-description: AI video editing tool. Analyze materials, generate creative ideas, design storyboards, execute editing. Supports Vidu/Kling/Kling Omni video generation, Suno music generation, TTS voiceover, FFmpeg editing. Triggers when users request video creation, video editing, video generation, short film creation, or provide material directories for producing works.
+description: AI video editing tool. Analyze materials, generate creative ideas, design storyboards, execute editing. Supports Vidu/Kling/Kling Omni video generation, Suno music generation, TTS voiceover, FFmpeg editing. Triggers when users request to make videos, edit videos, generate videos, create short films, or provide material directories for producing works.
 argument-hint: <material_directory_or_video_file>
 ---
 
@@ -14,101 +14,99 @@ argument-hint: <material_directory_or_video_file>
 
 ## Recommended Configuration
 
-**Must use a multimodal model** (such as Claude Opus/Sonnet/Kimi-K2.5) for the best experience.
+**Recommended to use multimodal models** (such as Claude Opus/Sonnet/Kimi-K2.5) for the best experience.
 
-For non-multimodal models, a vision model will be automatically called for image analysis. Configure `VISION_BASE_URL`, `VISION_MODEL`, `VISION_API_KEY` in `config.json`.
+Non-multimodal models will automatically call vision models for image analysis. Configure `VISION_BASE_URL`, `VISION_MODEL`, `VISION_API_KEY` in `config.json`.
 
 ### Provider Selection
 
 **Different backends support different providers**:
 
 | Backend | Supported Providers | Notes |
-|------|----------------|------|
-| `seedance` | **piapi only** | Seedance only has piapi provider, no yunwu/fal support |
-| `kling-omni` | official, yunwu, fal | Switch when official API hits limits |
-| `kling` | official, yunwu | Switch when official API hits limits |
-| `vidu` | **yunwu only** | Vidu only has yunwu provider |
+|---------|-------------------|-------|
+| `seedance` | **piapi only** | Seedance has only one provider: piapi |
+| `kling-omni` | official, fal | Switch when official API encounters limits |
+| `kling` | official, fal | Switch when official API encounters limits |
+| `veo3` | **compass only** | Veo3 has only one provider: compass |
 
-When Kling official API encounters rate limits (429), use `--provider yunwu` or `--provider fal`:
+When Kling official API encounters concurrency limits (429), you can use `--provider fal`:
 
 ```bash
-# yunwu proxy (supports Vidu/Kling/Kling-Omni)
-python video_gen_tools.py video --provider yunwu --backend kling-omni --image-list ref.jpg ...
-
-# fal.ai proxy (only supports kling-omni)
+# fal.ai proxy
 python video_gen_tools.py video --provider fal --backend kling-omni --image-list ref.jpg ...
 ```
 
-**Note**: Seedance doesn't need `--provider` specified since it only has piapi provider.
+**Note**: Seedance and Veo3 do not need to specify `--provider` as they each have only one provider.
 
-**Provider auto-selection priority**: Official API → fal → yunwu
+**Provider auto-selection priority**: Official API → fal
 
 ---
 
-## Core Concepts
+## Core Philosophy
 
 - **Tool Files**: video_gen_tools.py (API calls) and video_gen_editor.py (FFmpeg editing) are command-line tools
 - **Flexible Planning, Robust Execution**: Planning phase produces structured artifacts, execution phase is driven by storyboard plan
-- **Graceful Degradation**: Proactively seek user help when encountering problems, rather than getting stuck
+- **Graceful Degradation**: Actively seek user help when encountering problems, rather than stalling the process
 
 ### Backend Selection Overview
 
-**Scenario-driven selection**:
+**Scenario-driven Selection**:
 
-| Scenario | Priority Backend | Fallback Backend | Reason |
-|-----|---------|---------|------|
-| **Fiction films/short dramas** | **Seedance** | Kling-Omni | Smart shot cutting + multi-reference, character consistency |
-| **Commercials (no real materials)** | **Seedance** | Kling-Omni | Long shots + smart shot cutting |
-| **Commercials (with real materials)** | Kling-3.0 / Vidu | — | Precise first frame control, real materials |
-| **MV clips** | **Seedance** | Kling-Omni | Long shots + music-driven |
-| **Vlog/documentary style** | Kling-3.0 | Vidu | Precise first frame control, no Seedance |
+| Scenario | Preferred Backend | Fallback Backend | Reason |
+|----------|------------------|------------------|--------|
+| **Fiction/Short Drama** | **Seedance** | Kling-Omni | Smart shot switching + multiple reference images, character consistency |
+| **Commercial (no real materials)** | **Seedance** | Kling-Omni | Long shots + smart shot switching |
+| **Commercial (with real materials)** | Kling-3.0 | — | Precise first-frame control, real materials |
+| **MV Short Film** | **Seedance** | Kling-Omni | Long shots + music-driven |
+| **Vlog/Realistic** | Kling-3.0 | Veo3 | Precise first-frame control, not using Seedance |
+| **High-quality Realistic Short** | Kling-3.0 | Veo3 | Veo3 as fallback when other backends fail, 4/6/8s shorts |
 
-**visual_style only affects user photo processing (if user photos exist)**:
+**visual_style only affects how user photos are processed (if user photos exist)**:
 
 | visual_style | User Photo Processing | Notes |
-|--------------|-------------|------|
-| `realistic` | **Seedance needs conversion** | User photos need 3-view generation first, then as reference |
-| `anime` | Direct use | Can be used as reference directly |
-| `mixed` | Per-scene processing | Realistic scenes need conversion, anime scenes direct use |
+|--------------|----------------------|-------|
+| `realistic` (photorealistic) | **Seedance requires conversion** | User's real photos need to generate three-view images first, then use as reference |
+| `anime` (animation/2D) | Use directly | Can be used directly as reference image |
+| `mixed` | Process by scene | Real-person scenes need conversion, anime scenes can use directly |
 
-**Seedance user photo conversion flow**:
+**Seedance User Real Photo Conversion Process**:
 ```
 User provides real photo →
-  ├── Call Gemini to generate 3-view (preserve face, body, figure details) →
+  ├── Call Gemini to generate three-view images (maintaining facial features, body shape, figure details) →
   │   - Front view
   │   - Side view
   │   - Full body proportion
-  ├── Select best angle as character reference →
+  ├── Select best view as character reference image →
   └── Register to personas.json
 ```
 
 **Key Rules**:
-- **Seedance prioritized for fictional content** (smart shot cutting is core advantage)
+- **Seedance preferred for fictional content** (smart shot switching is core advantage)
 - **Kling-Omni as fallback when Seedance fails**
-- **Use Kling/Vidu for real materials** (precise first frame control)
-- **Use same model for same project**, no mixing (except mixed mode)
+- **Use Kling/Vidu when having real materials** (precise first-frame control)
+- **Use the same model for the same project**, no mixing (except mixed mode)
 
-Detailed backend comparison and reference image strategy: See [reference/backend-guide.md](reference/backend-guide.md)
+Detailed backend comparison and degradation strategy: See [reference/backend-guide.md](reference/backend-guide.md)
 
 ---
 
-## Quick Start Workflow
+## Quick Start Process
 
 ```
-Environment Check → Material Collection → Creative Confirmation → Storyboard Design → Generation Execution → Editing Output
-      5s               Interactive         Interactive           Interactive           Automatic            Automatic
+Provider Selection → Environment Check → Material Collection → Creative Confirmation → Storyboard Design → Execute Generation → Edit Output
+    Interactive         5 seconds           Interactive         Interactive          Interactive        Automatic        Automatic
 ```
 
 ### Workflow Progress Checklist
 
 ```
 Task Progress:
-- [ ] Phase 0: Environment Check (python video_gen_tools.py check)
-- [ ] Phase 1: Material Collection (scan + visual analysis + character identification)
-- [ ] Phase 2: Creative Confirmation (question card interaction + character reference collection)
-- [ ] Phase 3: Storyboard Design (generate storyboard.json + auto backend selection + user confirmation)
-- [ ] Phase 4: Generation Execution (API calls + progress tracking)
-- [ ] Phase 5: Editing Output (concatenation + transitions + color grading + music)
+- [ ] Phase 0: Provider Configuration + Environment Check
+- [ ] Phase 1: Material Collection (Scan + Visual Analysis + Character Recognition)
+- [ ] Phase 2: Creative Confirmation (Question Card Interaction + Character Reference Image Collection)
+- [ ] Phase 3: Storyboard Design (Generate storyboard.json + Auto Backend Selection + User Confirmation)
+- [ ] Phase 4: Execute Generation (API Calls + Progress Tracking)
+- [ ] Phase 5: Edit Output (Concatenation + Transitions + Color Grading + Music)
 ```
 
 ---
@@ -117,9 +115,9 @@ Task Progress:
 
 ### Step 1: Select Video Generation Provider
 
-**Must complete API configuration before starting any work. Cannot enter Phase 1 without available API key.**
+**Must complete API configuration before starting any work. Do not proceed to Phase 1 without an available API key.**
 
-First run setup to check current configuration status:
+First run setup to view current configuration status:
 
 ```bash
 python ~/.claude/skills/video-gen/video_gen_tools.py setup
@@ -127,23 +125,23 @@ python ~/.claude/skills/video-gen/video_gen_tools.py setup
 
 Output includes all available providers and their key configuration status. **If no video provider key is configured**, must guide user to select and configure:
 
-**Show options card to user**:
+**Present option card to user**:
 
 > Please select video generation API (can change later):
 >
-> **1. Seedance (Recommended)** — ByteDance, smart shot cutting + multi-reference, suitable for fiction/short drama/MV
+> **1. Seedance (Recommended)** — From ByteDance, smart shot switching + multiple reference images, suitable for fiction/short drama/MV
 >    - Requires: Seedance API Key (from piapi.ai)
 >
-> **2. Kling Official** — Kuaishou, precise first frame control, suitable for realistic/commercial videos
+> **2. Kling Official** — From Kuaishou, precise first-frame control, suitable for realistic/commercial videos
 >    - Requires: Kling Access Key + Secret Key (from klingai.kuaishou.com)
 >
 > **3. Kling via fal.ai** — Bypass official concurrency limits
 >    - Requires: fal.ai API Key (from fal.ai)
 >
-> **4. Veo3 via Compass** — Google Veo3, high quality realistic shorts (4/6/8s)
+> **4. Veo3 via Compass** — Google Veo3, high-quality realistic shorts (4/6/8s)
 >    - Requires: Compass API Key (from compass.llm.shopee.io)
 
-After user selection, request corresponding API key, then save:
+After user selects, request corresponding API key, then save:
 
 ```bash
 # Example: User selects Seedance
@@ -170,9 +168,9 @@ User can skip optional services.
 python ~/.claude/skills/video-gen/video_gen_tools.py check
 ```
 
-- Basic dependencies (FFmpeg/Python/httpx) fail → Stop and provide installation instructions
-- **At least one video provider API key configured** → Continue
-- **No video API key** → Return to Step 1, cannot continue
+- Basic dependencies (FFmpeg/Python/httpx) not passing → Stop and inform installation method
+- **At least one video provider's API key configured** → Continue
+- **No video API key** → Return to Step 1, do not continue
 
 ---
 
@@ -180,11 +178,11 @@ python ~/.claude/skills/video-gen/video_gen_tools.py check
 
 ### Material Source Identification
 
-- **Directory path** → Scan images/videos in directory
+- **Directory path** → Scan image/video files in directory
 - **Video file** → Analyze that video directly
 - **No materials** → Pure creative mode
 
-### Visual Analysis Process (3-level fallback)
+### Visual Analysis Process (Three-level fallback)
 
 **Step 1**: Use Read tool to read images. Record scene description, subject content, emotional tone, color style.
 
@@ -196,36 +194,36 @@ client = VisionClient()
 results = await client.analyze_batch(image_paths, "Analyze these materials: scene, subject, color, atmosphere")
 ```
 
-**Step 3**: VisionClient also fails → Proactively ask user to describe each material's content.
+**Step 3**: VisionClient also fails → Actively ask user to describe each material's content.
 
-### Character Identification (Conditional)
+### Character Recognition (Conditional)
 
-**Triggered only when user provides character portrait images** (ask user if unsure).
+**Triggers only when user provides character portrait images** (ask user if uncertain).
 
 Execution steps:
 1. Read image content, identify all characters
 2. Ask user to confirm each character's identity
-3. Register each using PersonaManager:
+3. Register separately using PersonaManager:
 
 ```python
 from video_gen_tools import PersonaManager
 manager = PersonaManager(project_dir)
 
 # Case A: User provided reference image
-manager.register("Emma", "female", "path/to/ref.jpg", "long hair, oval face")
+manager.register("Xiaomei", "female", "path/to/ref.jpg", "long hair, oval face")
 
 # Case B: User did not provide reference image (Phase 2 will supplement)
-manager.register("Marcus", "male", None, "short brown hair, athletic build, casual clothes")
+manager.register("SunWukong", "male", None, "monkey face, golden headband, tiger skin skirt")
 ```
 
 **Phase 1 Key Principles**:
-- Only process reference images **already uploaded** by user
-- For characters without uploads, set reference_image to `None`, supplemented in Phase 2
+- Only process reference images user **has uploaded**
+- For characters without uploaded images, set reference_image to `None`, supplemented by Phase 2
 - Do not ask about reference images not uploaded at this stage
 
-### Phase 1 Outputs
+### Phase 1 Output
 
-Create project directory `~/video-gen-projects/{project_name}_{timestamp}/`, outputs:
+Create project directory `~/video-gen-projects/{project_name}_{timestamp}/`, produce:
 - `state.json` — Project status
 - `analysis/analysis.json` — Material analysis results
 - `personas.json` — Character registry (reference_image may be None)
@@ -235,15 +233,15 @@ Create project directory `~/video-gen-projects/{project_name}_{timestamp}/`, out
 {
   "personas": [
     {
-      "name": "Marcus",
+      "name": "SunWukong",
       "gender": "male",
-      "reference_image": null,
-      "features": "monkey face, golden fur, fiery eyes, wearing golden armor"
+      "reference_image": null,  // null when not uploaded in Phase 1
+      "features": "monkey face, golden fur, fiery eyes, wearing golden chainmail"
     },
     {
-      "name": "Emma",
+      "name": "Xiaomei",
       "gender": "female",
-      "reference_image": "/path/to/ref.jpg",
+      "reference_image": "/path/to/ref.jpg",  // User uploaded reference image
       "features": "long hair, oval face"
     }
   ]
@@ -254,73 +252,67 @@ Create project directory `~/video-gen-projects/{project_name}_{timestamp}/`, out
 
 ## Phase 2: Creative Confirmation
 
-**Use question cards to interact with user**, collecting key information.
+**Interact with user using question cards**, collect key information.
 
 ### Question Card Design
 
 **Question 1: Video Style**
-- Options: Cinematic | Vlog style | Commercial | Documentary | Art/Experimental
+- Options: Cinematic | Vlog Style | Commercial | Documentary | Art/Experimental
 - Note: Determines overall tone of color grading, transitions, music
 
 **Question 2: Target Duration**
-- Options: 15s (short video) | 30s (standard) | 60s (long video) | Custom
+- Options: 15 seconds (short video) | 30 seconds (standard) | 60 seconds (long video) | Custom
 - Note: Affects number of shots and pacing
 
 **Question 3: Aspect Ratio**
-1. 9:16 Vertical
-   Portrait for TikTok/Instagram Stories/YouTube Shorts
-2. 16:9 Horizontal (Recommended)
-   Landscape for YouTube/broad viewing
-3. 1:1 Square
-   Square for Instagram feed/Facebook
-4. Type something else
+- Options: 9:16 (Douyin/Xiaohongshu) | 16:9 (Bilibili/YouTube) | 1:1 (Instagram)
 - Note: Choose based on publishing platform
 
 **Question 4: Music Needs**
 - Options: AI-generated BGM | No music needed | I already have music
-- Note: Whether Suno needs to generate background music
+- Note: Whether to use Suno for background music generation
 
-**Question 5: Narration/Voiceover**
+**Question 5: Voiceover/Narration**
 
-**First determine if video type is suitable for narration**:
+**First determine if video type is suitable for voiceover**:
 
-| Video Style | Narration Need | Note |
-|-------------|----------------|------|
-| Cinematic/Fiction | Usually not needed | Dialogue is main, narration breaks immersion |
-| Documentary | Usually needed | Scene explanation, background intro |
-| Vlog style | Possibly needed | Travel commentary, mood recording |
-| Commercial | Possibly needed | Product intro, brand story |
-| Art/Experimental | Case-dependent | Concept expression may need narration |
+| Video Style | Voiceover Need | Note |
+|------------|----------------|------|
+| Cinematic/Fiction | Usually not needed | Character dialogue is primary, voiceover breaks immersion |
+| Documentary | Usually needed | Scene explanation, background introduction |
+| Vlog Style | Possibly needed | Travel commentary, mood recording |
+| Commercial | Possibly needed | Product introduction, brand story |
+| Art/Experimental | Case by case | Concept expression may need voiceover |
 
 **When uncertain, ask user**:
 
-> Does this video need narration/voiceover?
-> - **No narration** (Dialogue is main, or pure visual expression)
-> - **Need AI-generated narration** (I will design copy based on storyboard)
-> - **I already have narration copy** (User provides complete copy)
+> Does this video need voiceover/narration?
+> - **No voiceover needed** (character dialogue is primary, or pure visual expression)
+> - **Need AI-generated voiceover** (I will design script based on storyboard)
+> - **I already have voiceover script** (User provides complete script)
 
 **Distinguish two audio generation methods**:
 
 **A. Character Dialogue (Sync Sound)**
 - Generated directly by video generation model
-- Need to explicitly describe in shot's video_prompt: character, dialogue, emotion, speed, voice quality
+- Need to explicitly describe in shot's video_prompt: character, dialogue, emotion, speech rate, voice quality
 - Set `audio: true` during video generation
 
-**B. Narration/Voiceover (Post-production Dubbing)**
+**B. Voiceover/Narration (Post-production)**
 - Generated by TTS in post-production, mixed in during editing phase
-- Used for scene explanation, background intro, emotional enhancement
-- Phase 3 will design narration copy and timing based on storyboard
+- Used for scene explanation, background introduction, emotional enhancement
+- Phase 3 will design voiceover script and timing based on storyboard
 
-**Important Principle**: For shots that can capture sync sound, do not use post-production TTS dubbing!
+**Important Principle**: For shots that can capture sync sound, never use post-production TTS dubbing!
 
 ### Question 6: Character Art Style Selection
 
-**Trigger Condition**: Fiction/short drama, MV clip type projects (Vlog/realistic defaults to realistic style).
+**Trigger Condition**: Fiction/short drama, MV short film type projects (Vlog/realistic defaults to realistic style).
 
 > **Please select character art style**
-> - **A. Realistic Style** — AI-generated character reference images use realistic actor style
-> - **B. Anime/2D Style** — AI-generated character reference images use anime style
-> - **C. Mixed Style** — Process per scene, realistic scenes and anime scenes have different styles
+> - **A. Photorealistic Style** — AI-generated character reference images adopt real actor style
+> - **B. Anime/2D Style** — AI-generated character reference images adopt anime style
+> - **C. Mixed Style** — Process by scene, real-person scenes and anime scenes have different styles
 
 **After selection, write to `creative.json`**:
 ```json
@@ -331,45 +323,53 @@ Create project directory `~/video-gen-projects/{project_name}_{timestamp}/`, out
 
 **Explanation**:
 
-| visual_style | AI Reference Image Style | User Photo Processing (if any) |
-|--------------|--------------------------|-------------------------------|
-| `realistic` | Realistic actor style | Seedance needs 3-view conversion first, Kling-Omni can use directly |
-| `anime` | Anime/2D style | Can be used as reference directly |
-| `mixed` | Decide per scene | Realistic scene photos need conversion, anime scenes can use directly |
+| visual_style | AI Reference Image Style | User Real Photo Processing (if any) |
+|--------------|-------------------------|-----------------------------------|
+| `realistic` | Real actor style | Seedance needs to generate three-view conversion first, Kling-Omni can use directly |
+| `anime` | Anime/2D style | Can use directly as reference image |
+| `mixed` | Decide by scene | Real-person scene photos need conversion, anime scenes can use directly |
 
 **Key Understanding**:
 - **Pure creative mode (no user photos)**: visual_style only determines AI-generated reference image style, **does not affect backend selection**
-- **With user photos mode**: visual_style determines user photo processing (whether 3-view conversion needed)
-- **Backend selection basis**: Project needs (smart shot cutting vs character consistency vs first frame control), not visual_style
+- **User photo mode**: visual_style determines how user photos are processed (whether three-view conversion is needed)
+- **Backend selection basis**: Project requirements (smart shot switching vs character consistency vs first-frame control), not visual_style
 
 ### Question 7: Character Reference Image Collection
 
-**Trigger Condition**: Check personas.json, trigger when characters have `reference_image` as null/empty.
+**Trigger Condition**: Check personas.json, triggers when character with null/empty `reference_image` exists.
 
 **Check Logic**:
 ```python
 manager = PersonaManager(project_dir)
 for persona_id in manager.list_personas_without_reference():
-    # Ask user for this character's reference image source
+    # Ask user about this character's reference image source
     ask_user_for_reference(persona_id)
 ```
 
-**Question Content** (for each character without reference):
+**Ask Content** (for each character without reference image):
 
-> **Character '{name}' needs reference image**
+> **Character "{name}" needs a reference image**
 >
 > Please select reference image source:
-> - **A. AI-generate character image** (Recommended, automatically generates standard reference)
+> - **A. AI-generated character image** (Recommended, automatically generate standard reference image)
 > - **B. Upload reference image** (User provides character photo)
-> - **C. Accept pure text generation** (Character appearance may vary across shots)
+> - **C. Accept text-only generation** (Character appearance may be inconsistent across different shots)
 
 **Post-selection Processing**:
 
-**A. AI Generation**:
+**A. AI Generation** (determine style based on visual_style):
 ```python
-# Generate character reference image
+# Read visual_style
+visual_style = creative.get("visual_style", "realistic")
+
+# Generate reference image with corresponding style based on art style
+if visual_style == "anime":
+    style_suffix = "anime style, 2D animation, vibrant colors"
+else:  # realistic
+    style_suffix = "photorealistic, cinematic, realistic"
+
 python video_gen_tools.py image \
-  --prompt "{character appearance description}, front half-body shot, solid background, HD portrait" \
+  --prompt "{character appearance description}, {style_suffix}, front half-body shot, solid background, high-quality portrait" \
   --output materials/personas/{name}_ref.png
 
 # Update personas.json
@@ -381,37 +381,57 @@ manager.update_reference_image(persona_id, "materials/personas/{name}_ref.png")
 - Save to `materials/personas/{name}_ref.{ext}`
 - Update personas.json
 
-**C. Pure Text**:
+**C. Text Only**:
 - Record warning to `creative/decision_log`
-- Phase 3 will **force generate storyboard frame**, then use img2video or reference2video
+- Subsequent Phase 3 will **force storyboard image generation**, then use img2video or reference2video
 
 **Key Rules**:
-- **Must generate reference image**: When character appears in **multiple shots**
+- **Must generate reference image**: When character needs to appear in **multiple shots**
 - **Can use text2video**: Single scene appearance, pure scenery, user explicitly accepts appearance variation
+- **When AI generates reference images must follow visual_style**: anime style or realistic style
 
-### Phase 2 Outputs
+### Phase 2 Output
 
-- `creative/creative.json` — Creative plan
-- Updated `personas.json` — Supplemented reference_images (if any)
-- `creative/decision_log.json` — Records reference image related decisions
+- `creative/creative.json` — Creative plan (including visual_style art style decision)
+- Updated `personas.json` — Supplement reference_images (if any)
+- `creative/decision_log.json` — Record reference image related decisions
 
-**creative.json narration field structure**:
+**creative.json Structure**:
 
 ```json
 {
+  "title": "Project Title",
+  "style": "cinematic",
+  "duration": 30,
+  "aspect_ratio": "16:9",
+  "visual_style": "anime",  // realistic / anime / mixed — art style decision
+  "music": {
+    "enabled": true,
+    "source": "ai_generated",
+    "prompt": "Music description",
+    "style": "Music style"
+  },
   "narration": {
     "type": "ai_generated",
-    "voice_style": "Gentle female voice, moderate speed",
-    "user_text": "User-provided complete narration copy"
+    "voice_style": "Gentle female voice, moderate pace",
+    "user_text": null
   }
 }
 ```
 
-| type | Note | Phase 3 Processing |
-|------|------|-------------------|
-| `none` | No narration needed | Do not plan narration_segments |
-| `ai_generated` | AI designs copy | Auto-write narration based on storyboard, segment by shot |
-| `user_provided` | User has copy | Segment user_text by shot timing |
+**visual_style Field Explanation**:
+
+| Value | Explanation | User Photo Processing |
+|-------|-------------|----------------------|
+| `realistic` | Photorealistic style | Seedance needs three-view conversion first, Kling-Omni can use directly |
+| `anime` | Anime/2D style | Can use directly as reference image |
+| `mixed` | Mixed style | Real-person scene photos need conversion, anime scenes can use directly |
+
+| type | Explanation | Phase 3 Processing |
+|------|-------------|-------------------|
+| `none` | No voiceover needed | Do not plan narration_segments |
+| `ai_generated` | AI designs script | Automatically write voiceover based on storyboard, segment by shot |
+| `user_provided` | User already has script | Segment user_text by shot timing |
 
 ---
 
@@ -419,12 +439,12 @@ manager.update_reference_image(persona_id, "materials/personas/{name}_ref.png")
 
 Generate storyboard script based on materials and creative plan.
 
-### Must Read Before Generating Storyboard
+### Mandatory Reading Before Storyboard Generation
 
-**Before generating storyboard script, must read these three documents**:
+**Before generating storyboard script, must read the following three documents**:
 
 ```
-Read: reference/storyboard-spec.md   # T2V/I2V decision tree, storyboard spec, JSON format
+Read: reference/storyboard-spec.md   # T2V/I2V decision tree, storyboard specs, JSON format
 Read: reference/prompt-guide.md       # Prompt writing standards, consistency requirements
 Read: reference/backend-guide.md      # Backend selection decision tree, reference image strategy
 ```
@@ -449,98 +469,93 @@ storyboard["elements"] = {"characters": characters}
 storyboard["character_image_mapping"] = image_mapping
 ```
 
-**Synced storyboard.json structure**:
+**After sync, storyboard.json Structure**:
 ```json
 {
   "elements": {
     "characters": [
       {
-        "element_id": "Element_Marcus",
-        "name": "Marcus",
-        "name_en": "Marcus",
-        "reference_images": ["materials/personas/Marcus_ref.png"],
-        "visual_description": "monkey face, golden fur..."
+        "element_id": "Element_SunWukong",
+        "name": "SunWukong",
+        "name_en": "SunWukong",
+        "reference_images": ["materials/personas/sunwukong_ref.png"],
+        "visual_description": "Monkey face, golden fur..."
       }
     ]
   },
   "character_image_mapping": {
-    "Element_Marcus": "image_1"
+    "Element_SunWukong": "image_1"
   }
 }
 ```
 
 ### Step 2: Auto Backend Selection Logic
 
-**Automatically select backend based on project type** (no manual decision needed):
+**Scenario-driven Selection**:
 
-#### Project Type Judgment (Phase 1 auto identification)
+| Scenario | Preferred Backend | Fallback Backend | Reason |
+|----------|------------------|------------------|--------|
+| **Fiction/Short Drama** | **Seedance** | Kling-Omni | Smart shot switching + multiple reference images, character consistency |
+| **Commercial (no real materials)** | **Seedance** | Kling-Omni | Long shots + smart shot switching |
+| **Commercial (with real materials)** | Kling-3.0 | — | Precise first-frame control, real materials |
+| **MV Short Film** | **Seedance** | Kling-Omni | Long shots + music-driven |
+| **Vlog/Realistic** | Kling-3.0 | Veo3 | Precise first-frame control, not using Seedance |
+| **High-quality Realistic Short** | Kling-3.0 | Veo3 | Veo3 as fallback when other backends fail, 4/6/8s shorts |
 
-| User Intent Keywords | Project Type |
-|---------------------|--------------|
-| "short drama", "plot", "story" | Fiction film/short drama |
-| "vlog", "travel record", "life record" | Vlog/documentary style |
-| "commercial", "promo video", "product showcase" | Commercial/promo video |
-| "MV", "music video" | MV clip |
+**First-frame Control Capability Comparison**:
 
-#### Decision Tree
+| Backend | First-frame Control | Note |
+|---------|-------------------|------|
+| **Kling-3.0** | ✅ `--image` | Video starts from this image |
+| **Veo3** | ✅ `--image` | Precise first-frame control |
+| **Seedance** | ❌ Reference image | Storyboard image is visual style reference, not first frame |
+| **Kling-Omni** | ❌ Reference image | Only reference2video, no img2video |
 
-**Fiction films/short dramas, MV clips**:
-```
-Fiction content → All shots must first generate storyboard frame
-           ├── Priority → Kling-3.0-Omni (reference2video)
-           │             └── image_list: [storyboard frame, character reference]
-           │
-           └── Fallback → Kling-3.0 or Vidu Q3 Pro (img2video)
-                         └── --image: storyboard frame as first frame
-```
-
-**Vlog/documentary style, commercials/promos (with real materials)**:
-```
-Real materials → Need first frame control
-           └── Kling-3.0 or Vidu Q3 Pro (img2video)
-               └── --image: User material first frame
-```
-
-#### Selection Rules Table
-
-| Project Type | Material Situation | Generation Mode | Backend |
-|--------------|-------------------|-----------------|---------|
-| Fiction/short drama | With/without character ref | **reference2video** | kling-omni |
-| MV clip | With/without character ref | **reference2video** | kling-omni |
-| Vlog/documentary | User real materials | **img2video** | kling or vidu |
-| Commercial/promo | Has real materials | **img2video** | kling or vidu |
-| Commercial/promo | No real materials | **reference2video** | kling-omni |
+**visual_style only applies when "has user real photos + using Seedance"**:
+- `realistic` → User photos need three-view conversion first
+- `anime` → User photos can be used directly
+- Pure creative mode: visual_style only affects AI reference image style
 
 **Core Principles**:
-1. **Use same model for same project**, do not mix
-2. **Fiction films do not use text2video**
-3. **Omni does not support first frame control**, use Kling-3.0 or Vidu when needed
+1. **Use the same model for the same project**
+2. **Fiction does not use text2video**
+3. **When needing first-frame control, only use Kling or Vidu**
+4. **Seedance/Omni storyboard images are references, not precise first-frame control**
 
 ### Step 3: Generate Storyboard
 
-**Core Structure**: Storyboard uses `scenes[] → shots[]` two-level structure.
+**Core Structure**: Storyboard uses `scenes[] → shots[]` two-layer structure.
 
 **Key Design Principles**:
-1. Total duration = Target duration (±2s), single shot 2-5 seconds
-2. Max 1 action per shot, no spatial changes
-3. All video_prompt must include aspect ratio info
-4. Dialogue must be integrated into video_prompt (character + content + emotion + voice)
-5. Set `generation_mode` and `reference_images` based on Step 2's auto selection result
 
-**Full storyboard spec**: See [reference/storyboard-spec.md](reference/storyboard-spec.md)
-**Prompt writing and consistency spec**: See [reference/prompt-guide.md](reference/prompt-guide.md)
+1. **Duration Design (based on backend limits)**:
+   | Backend | Scene Total Duration Limit | Design Strategy |
+   |---------|---------------------------|----------------|
+   | **Seedance** | **4-15s** (any integer) | Scene total duration ≤15s is fine |
+   | Kling-Omni | 3-15s (continuous range) | Scene total duration ≤15s is fine |
+   | Kling-3.0 | 3-15s (continuous range) | Each individual shot ≤15s |
+   | Vidu | 5-10s | Each shot 5-10s |
 
-**Process narration while generating storyboard**:
+2. Total duration = Target duration (±2 seconds), single shot 2-5 seconds
+3. At most 1 action per shot, no spatial changes
+4. All video_prompt must include aspect ratio info
+5. Dialogue must be integrated into video_prompt (character + content + emotion + voice)
+6. Set `generation_mode` and `reference_images` based on Step 2's auto-selection result
 
-If `creative.narration.type` is not `none`, plan narration segments while generating storyboard:
+**Complete Storyboard Specification**: See [reference/storyboard-spec.md](reference/storyboard-spec.md)
+**Prompt Writing and Consistency Standards**: See [reference/prompt-guide.md](reference/prompt-guide.md)
+
+**Process Voiceover Segmentation While Generating Storyboard**:
+
+If `creative.narration.type` is not `none`, plan voiceover segmentation while generating storyboard:
 
 1. **Read narration info**:
    - `voice_style` → Write to `narration_config.voice_style`
    - `user_text` (if any) → Segment by shot timing
 
-2. **Design narration copy based on shot content**:
-   - Each narration segment corresponds to one shot or consecutive shots
-   - Each segment should be 2-5 seconds speakable length (about 30-50 words)
+2. **Design voiceover script based on shot content**:
+   - Each voiceover segment corresponds to one shot or a group of consecutive shots
+   - Each segment should be 2-5 seconds in length when spoken (about 30-50 characters)
 
 3. **Plan timing and write to storyboard.json**:
 
@@ -550,20 +565,20 @@ If `creative.narration.type` is not `none`, plan narration segments while genera
     "voice_style": "Gentle female voice"
   },
   "narration_segments": [
-    {"segment_id": "narr_1", "overall_time_range": "0-3s", "text": "This is a quiet afternoon..."},
+    {"segment_id": "narr_1", "overall_time_range": "0-3s", "text": "This is a peaceful afternoon..."},
     {"segment_id": "narr_2", "overall_time_range": "8-11s", "text": "She sits by the window..."}
   ]
 }
 ```
 
-**Narration segment spec**: See [reference/storyboard-spec.md](reference/storyboard-spec.md) → "Narration Segment Planning"
+**Voiceover Segmentation Specification**: See [reference/storyboard-spec.md](reference/storyboard-spec.md) → "Voiceover Segmentation Planning"
 
-### Step 4: Show to User for Confirmation (Required Step)
+### Step 4: Present to User for Confirmation (Mandatory Step)
 
-**Must have user's explicit confirmation before entering Phase 4!**
+**Must get user's explicit confirmation before entering Phase 4!**
 
-Show for each shot:
-- Scene info
+Present each shot's:
+- Scene information
 - Generation mode (text2video/img2video/omni-video)
 - Backend selection
 - video_prompt
@@ -573,124 +588,155 @@ Show for each shot:
 - Transition
 - Duration
 
-**If has narration, additionally show**:
+**If voiceover exists, additionally present**:
 - narration_segments segment list
-- Each segment's timing, copy
+- Each segment's timing, script
 
-Provide options: Confirm and execute / Modify storyboard / Adjust narration / Adjust duration / Change transition / Cancel
+Provide options: Confirm and Execute / Modify Storyboard / Adjust Voiceover / Adjust Duration / Change Transition / Cancel
 
-### Phase 3 Outputs
+### Phase 3 Output
 
-- `storyboard/storyboard.json` — Storyboard script (includes generation_mode, reference_images, backend selection, narration_segments)
+- `storyboard/storyboard.json` — Storyboard script (including generation_mode, reference_images, backend selection, narration_segments)
 
 ---
 
-## Phase 4: Generation Execution
+## Phase 4: Execute Generation
 
 Execute video generation based on storyboard.json.
 
-### Pre-execution Check
+### Phase 4 Pre-execution Check
+
+**0. Storyboard Validation (Must Pass)**
+
+```bash
+python ~/.claude/skills/video-gen/video_gen_tools.py validate --storyboard storyboard/storyboard.json
+```
+
+Validation content: Whether Seedance duration is within 4-15s range, whether backend-mode matches, whether reference images exist, aspect_ratio format, whether API key is available.
+- Has ERROR → Must fix before continuing
+- Only WARNING → Can continue, but needs attention
 
 **1. Reference Image Size Check**
-- Read each shot's `reference_images` from storyboard.json
-- Check all reference image sizes
-- Min dimension < 720px → Auto upscale to 1280px
-- Max dimension > 2048px → Auto downscale to 2048px
-- Auto generate adjusted images (add `_resized` suffix)
+- Read `reference_images` for each shot from storyboard.json
+- Detect all reference image sizes
+- Minimum edge < 720px → Auto upscale to 1280px
+- Maximum edge > 2048px → Auto downscale to 2048px
+- Auto-generate adjusted images (add `_resized` suffix)
 
 **2. Parameter Validation**
 - **Read `aspect_ratio` field from storyboard.json, pass to CLI's `--aspect-ratio` parameter**
-- Set API parameters based on storyboard's `audio` config (see prompt-guide.md)
+- Set API parameters based on storyboard's `audio` configuration (see prompt-guide.md for details)
 
 ### Execution Rules
 
-1. **First API call executes alone**, confirm success before concurrent
-2. **Max 3 concurrent** API generation calls
-3. **Real-time update state.json** recording progress
-4. **Retry on failure** max 2 times, then ask user
+1. **First API call executes separately**, confirm success before parallelizing
+2. **No more than 3 concurrent** API generation calls
+3. **Real-time update state.json** to record progress
+4. **Retry on failure** up to 2 times, then ask user
 
 ### API Error Handling and Degradation
 
 When API call fails, handle by error type:
 
-| Error Type | Handling |
-|------------|----------|
-| **429 Concurrent limit** | Ask user: wait retry or degrade to Path B |
-| **402 Insufficient balance** | Notify user to recharge, or degrade to other available backend |
-| **Network timeout** | Retry 2 times, ask after failure |
-| **Other error** | Record error details, ask user |
+| Error Type | Handling Method |
+|-----------|----------------|
+| **429 Concurrency Limit** | Ask user: Wait and retry or downgrade to Path B |
+| **402 Insufficient Balance** | Inform user to top up, or downgrade to other available backend |
+| **Network Timeout** | Retry 2 times, ask user after failure |
+| **Other Errors** | Record error details, ask user |
 
 **Degradation Decision Flow**:
 
 ```
-API Fail → Determine error type →
-  ├── 429/402 (resource limit) → Ask user to degrade
+API Failure → Determine error type →
+  ├── 429/402 (Resource limit) → Ask user about downgrade
   │     ├── User chooses wait → Wait 60s then retry
-  │     ├── User chooses degrade → Execute degradation flow (see below)
+  │     ├── User chooses downgrade → Execute degradation process (see below)
   │     └── User chooses cancel → Stop generation
-  └── Other error → Retry 2 times → Ask user after failure
+  └── Other errors → Retry 2 times → Ask user after failure
 ```
 
-**Degradation Execution Flow** (Path A → Path B):
+**Degradation Execution Flow** (Seedance → Omni or Path A → Path B):
 
-1. Notify user of degradation consequence (character consistency will decrease)
-2. Modify storyboard.json's generation mode field
-3. First generate all storyboard frames (using Gemini)
-4. Use storyboard frames as first frame to call Kling img2video
+**Seedance Failure Handling** (Must retry first):
+1. **First failure** → Retry once (same parameters, wait 30s)
+2. **Retry still fails** → Inform user and ask about downgrade options:
+   ```
+   Seedance generation failed (retried 1 time).
+   
+   Available options:
+   A. Downgrade to Kling-Omni (lose smart shot switching, need manual multi-shot)
+   B. Modify prompt and retry Seedance
+   C. Cancel this generation
+   
+   Please select:
+   ```
+3. User selects A → Execute degradation process
 
-**Degradation detailed spec**: See [reference/backend-guide.md](reference/backend-guide.md) → "Degradation Strategy on API Limits"
+**Seedance → Omni**:
+1. Inform user of degradation consequences (lose smart shot switching, need manual multi-shot)
+2. Modify storyboard.json's generation_backend to `kling-omni`
+3. Call API for each shot separately (do not merge)
 
-### Generation Mode Strict Execution
+**Omni → Kling img2video**:
+1. Inform user of degradation consequences (character consistency will decrease)
+2. Modify storyboard.json's generation mode fields
+3. Generate all storyboard images first (using Gemini)
+4. Use storyboard images as first frame to call Kling img2video
 
-**Must strictly execute according to storyboard.json, no unauthorized changes**:
+**Detailed Degradation Specification**: See [reference/backend-guide.md](reference/backend-guide.md) → "Degradation Strategy When API Limited"
+
+### Generation Mode Enforcement
+
+**Must strictly execute according to storyboard.json, do not change without authorization**:
 
 | generation_mode | CLI Parameters |
-|-----------------|----------------|
+|----------------|----------------|
 | `seedance-video` | `--backend seedance --aspect-ratio {aspect_ratio} --image-list {frame} {ref1} {ref2} ...` |
 | `omni-video` | `--backend kling-omni --aspect-ratio {aspect_ratio} --image-list {ref1} {ref2} ...` |
 | `img2video` | `--aspect-ratio {aspect_ratio} --image {frame_path}` |
 | `text2video` | `--aspect-ratio {aspect_ratio}` |
 
-**Important**: `{aspect_ratio}` read from `storyboard.json`'s `aspect_ratio` field.
+**Important**: `{aspect_ratio}` is read from `storyboard.json`'s `aspect_ratio` field.
 
-**Example (Seedance mode)**:
+**Example (Seedance Mode)**:
 ```bash
-# Seedance smart shot cutting: storyboard frame + character reference images
+# Seedance smart shot switching: storyboard image + character reference images
 python video_gen_tools.py video \
   --backend seedance \
   --aspect-ratio 16:9 \
   --prompt "Referencing the scene1_frame composition... @image1..." \
-  --image-list generated/frames/scene1_frame.png materials/personas/emma_ref.jpg \
+  --image-list generated/frames/scene1_frame.png materials/personas/xiaomei_ref.jpg \
   --duration 10 \
   --output generated/videos/scene1.mp4
 ```
 
-**Example (Omni mode)**:
+**Example (Omni Mode)**:
 ```bash
-# Read aspect_ratio from storyboard.json (e.g. "16:9")
+# Read aspect_ratio from storyboard.json (e.g., "16:9")
 python video_gen_tools.py video \
   --backend kling-omni \
   --aspect-ratio {aspect_ratio} \
-  --prompt "Marcus walking confidently..." \
-  --image-list materials/personas/marcus_ref.png \
+  --prompt "SunWukong wields the golden staff..." \
+  --image-list materials/personas/sunwukong_ref.png \
   --audio \
   --output generated/videos/scene1_shot1.mp4
 ```
 
-### Seedance Execution Logic (Auto-assembly Mode)
+### Seedance Execution Logic (Auto Assembly Mode)
 
-**When `generation_backend = "seedance"`, use `--scene` parameter to auto-assemble time-segmented prompt.**
+**When `generation_backend = "seedance"`, use `--scene` parameter to auto-assemble time-segment prompts**.
 
-Tool automatically completes: time segment calculation, prompt format assembly, image_urls arrangement, duration validation (4-15s range).
+Tool will automatically: time segment calculation, prompt format assembly, image_urls arrangement, duration validation (4-15s range).
 
 #### Execution Steps
 
-**Step 1: Generate Storyboard Frame**
-- Generate one storyboard frame per Seedance scene
-- Use Gemini + character reference images to generate
+**Step 1: Generate Storyboard Image**
+- Generate one storyboard image per Seedance scene
+- Use Gemini + character reference images
 - Save to `generated/frames/{scene_id}_frame.png`
 
-**Step 2: Call Auto-assembly**
+**Step 2: Call Auto Assembly**
 
 ```bash
 python video_gen_tools.py video \
@@ -700,22 +746,22 @@ python video_gen_tools.py video \
   --output generated/videos/scene_1.mp4
 ```
 
-Tool internally auto:
-1. Read scene's shots, calculate time offsets, assemble time-segmented prompt
-2. Parse character reference image order from `character_image_mapping`
-3. Assemble `image_urls` (storyboard frame first, character references after)
-4. Total duration within 4-15s range, any integer works
+Tool internally:
+1. Reads scene's shots, calculates time offsets, assembles time-segment prompts
+2. Parses character reference image order from `character_image_mapping`
+3. Assembles `image_urls` (storyboard image first, character reference images after)
+4. Total duration can be any integer within 4-15s range
 
-**Key**: Ensure storyboard frame path is filled in shot's `reference_images`, and `video_prompt` includes camera movement + rhythm description.
+**Key**: Ensure storyboard image path is filled in shot's `reference_images`, and `video_prompt` contains camera movement + rhythm description.
 
 #### Manual Mode (Fallback)
 
-When auto-assembly doesn't meet needs, can still manually specify prompt:
+When auto assembly doesn't meet requirements, can still manually specify prompt:
 
 ```bash
 python video_gen_tools.py video \
   --backend seedance \
-  --prompt "Manually written time-segmented prompt..." \
+  --prompt "Manually written time-segment prompt..." \
   --image-list frame.png ref.jpg \
   --duration 10 \
   --output output.mp4
@@ -723,9 +769,9 @@ python video_gen_tools.py video \
 
 ### API Key Management
 
-Check and request API key on first call, set via `export` after user provides.
+Check and request API key on first call, user provides then set via `export`.
 
-**Tool call detailed parameters**: See [reference/api-reference.md](reference/api-reference.md)
+**Detailed Tool Call Parameters**: See [reference/api-reference.md](reference/api-reference.md)
 
 ### Music Generation
 
@@ -733,9 +779,9 @@ Calling `video_gen_tools.py music` must pass `--creative` parameter.
 
 Reason: Read `prompt` (music description) and `style` (music style) from `creative.json`'s `music` field, avoid using default style.
 
-### Narration Generation (Conditional Trigger)
+### Voiceover Generation (Conditional Trigger)
 
-**Trigger Condition**: Read `storyboard.json`'s `narration_segments`, trigger if exists.
+**Trigger Condition**: Read `storyboard.json`'s `narration_segments`, if exists then trigger.
 
 **Generation Flow**:
 
@@ -743,49 +789,49 @@ Reason: Read `prompt` (music description) and `style` (music style) from `creati
 2. **Call TTS for each segment**:
 
 ```bash
-# Generate each narration segment separately
+# Generate each voiceover segment separately
 python video_gen_tools.py tts \
-  --text "This is a quiet afternoon..." \
-  --voice-style "Gentle female voice, moderate speed" \
+  --text "This is a peaceful afternoon..." \
+  --voice-style "Gentle female voice, moderate pace" \
   --output generated/narration/narr_1.mp3
 
 python video_gen_tools.py tts \
   --text "She sits by the window..." \
-  --voice-style "Gentle female voice, moderate speed" \
+  --voice-style "Gentle female voice, moderate pace" \
   --output generated/narration/narr_2.mp3
 ```
 
-3. **Output file naming**: Name by `segment_id` (`narr_1.mp3`, `narr_2.mp3`...)
+3. **Output File Naming**: Named by `segment_id` (`narr_1.mp3`, `narr_2.mp3`...)
 
 **Execution Order**:
 ```
-Video clip generation → Music generation → Narration generation (if any) → Enter Phase 5 Editing
+Video segment generation → Music generation → Voiceover generation (if any) → Enter Phase 5 Editing
 ```
 
-### Phase 4 Outputs
+### Phase 4 Output
 
-- `generated/videos/*.mp4` — Generated video clips
+- `generated/videos/*.mp4` — Generated video segments
 - `generated/music/*.mp3` — Generated background music (if any)
-- `generated/narration/*.mp3` — Generated narration audio (if any)
-- Updated `state.json` — Recording generation progress
+- `generated/narration/*.mp3` — Generated voiceover audio (if any)
+- Updated `state.json` — Record generation progress
 
 ---
 
-## Phase 5: Editing Output
+## Phase 5: Edit Output
 
 ### Video Concatenation
 
 Calling `video_gen_editor.py concat` must pass `--storyboard` parameter.
 
-Reason: Read `aspect_ratio` from `storyboard.json` to ensure correct output video ratio.
+Reason: Read `aspect_ratio` from `storyboard.json`, ensure output video has correct aspect ratio.
 
-### Audio Preservation
+### Audio Protection
 
-Video clips may contain sync sound, effects, must not lose during concatenation. Silent clips will auto-add silent track to ensure audio-visual sync.
+Video segments may contain sync sound, sound effects, cannot be lost during concatenation. Silent segments will auto-add silent track, ensure audio-video sync.
 
 ### Video Parameter Validation
 
-Auto check resolution/encoding/framerate before concatenation, normalize if inconsistent (1080x1920 / H.264 / 24fps).
+Before concatenation, auto-check resolution/encoding/framerate, auto-normalize if inconsistent (1080x1920 / H.264 / 24fps).
 
 ```bash
 python ~/.claude/skills/video-gen/video_gen_editor.py concat --inputs video1.mp4 video2.mp4 --output final.mp4
@@ -794,9 +840,9 @@ python ~/.claude/skills/video-gen/video_gen_editor.py concat --inputs video1.mp4
 ### Synthesis Flow
 
 1. **Concatenate** → Connect by storyboard order (auto normalize)
-2. **Insert narration** → Position narration audio at correct position based on `narration_segments`' `overall_time_range` (if any)
-3. **Transition** → Add transition effects between shots
-4. **Color grading** → Apply overall color grading style
+2. **Insert Voiceover** → Place voiceover audio at correct position according to `narration_segments`'s `overall_time_range` (if any)
+3. **Transitions** → Add transition effects between shots
+4. **Color Grading** → Apply overall color grading style
 5. **Music** → Mix background music
 6. **Output** → Generate final video
 
@@ -804,24 +850,24 @@ python ~/.claude/skills/video-gen/video_gen_editor.py concat --inputs video1.mp4
 
 **Core Principle**: FFmpeg `amix` filter **must use `normalize=0`**, prevent auto-normalization from lowering volume.
 
-**Recommended Volume Values** (adjust flexibly by video type):
+**Recommended Volume Values** (adjust flexibly based on video type):
 
 | Audio Type | Recommended Volume | Note |
-|------------|-------------------|------|
+|-----------|-------------------|------|
 | Video ambient/sync sound | 0.8 | Preserve original audio atmosphere |
-| Narration/voiceover | 1.5-2.0 | Ensure voice clarity |
-| Background music (BGM) | 0.1-0.15 | Background supporting role |
+| Voiceover/Narration | 1.5-2.0 | Ensure voice clarity |
+| Background Music (BGM) | 0.1-0.15 | Background supporting role |
 
 **Video Type Adaptation**:
 
 | Video Type | BGM Volume | Reason |
-|------------|------------|--------|
-| Vlog/Documentary | 0.1-0.15 | Narration is main |
+|-----------|----------|--------|
+| Vlog/Documentary | 0.1-0.15 | Voiceover is primary |
 | Cinematic/Fiction | 0.2-0.3 | Music enhances emotion |
 | Music MV | 0.5-0.7 | Music is core element |
-| Commercial | 0.15-0.25 | Balance product intro with music |
+| Commercial | 0.15-0.25 | Balance product intro and music |
 
-**FFmpeg amix syntax**:
+**FFmpeg amix Syntax**:
 ```bash
 # Key: normalize=0 preserves original volume ratio
 "[track1][track2]amix=inputs=2:duration=first:normalize=0[out]"
@@ -829,14 +875,14 @@ python ~/.claude/skills/video-gen/video_gen_editor.py concat --inputs video1.mp4
 
 **Implementation Note**: `video_gen_editor.py`'s `mix_audio()` function has hardcoded `normalize=0` (around line 470).
 
-### Narration Insertion (Conditional Trigger)
+### Voiceover Insertion (Conditional Trigger)
 
-**Trigger Condition**: Read `storyboard.json`'s `narration_segments`, trigger if exists.
+**Trigger Condition**: Read `storyboard.json`'s `narration_segments`, if exists then trigger.
 
-**Insertion Method**: Use FFmpeg to insert narration audio at specified time points.
+**Insertion Method**: Use FFmpeg to insert voiceover audio at specified time points.
 
 ```bash
-# Insert narration by overall_time_range
+# Insert voiceover by overall_time_range
 python video_gen_editor.py narration \
   --video concat_output.mp4 \
   --storyboard storyboard/storyboard.json \
@@ -845,38 +891,71 @@ python video_gen_editor.py narration \
 ```
 
 **Timing Calculation**:
-- `overall_time_range` format: `"0-3s"` means starts at 0 seconds, continues to 3 seconds
-- Narration audio inserts at `overall_time_range`'s start time
-- Multiple narration segments stack in time order
+- `overall_time_range` format: `"0-3s"` means starts at 0 seconds, ends at 3 seconds
+- Voiceover audio is inserted at the start time of `overall_time_range`
+- Multiple voiceover segments are overlaid in chronological order
 
-### Phase 5 Outputs
+### Phase 5 Output
 
 - `output/final.mp4` — Final video
 
 ---
 
-## Tool Call Quick Reference
+## Tool Command Reference
 
 ```bash
 # Environment check
 python ~/.claude/skills/video-gen/video_gen_tools.py check
 
-# Video generation (must read aspect_ratio from storyboard.json)
+# Storyboard validation (Must pass before Phase 4 execution)
+python ~/.claude/skills/video-gen/video_gen_tools.py validate --storyboard storyboard/storyboard.json
+
+# Video generation (Must read aspect_ratio from storyboard.json)
 python ~/.claude/skills/video-gen/video_gen_tools.py video --prompt <description> --aspect-ratio {aspect_ratio} --output <output>
 
-# Music (must pass --creative, read prompt and style from creative.json)
+# Seedance auto assembly mode (Recommended: tool auto-calculates time segments, assembles prompt, arranges image_urls)
+python ~/.claude/skills/video-gen/video_gen_tools.py video \
+  --backend seedance \
+  --storyboard storyboard/storyboard.json \
+  --scene scene_1 \
+  --output generated/videos/scene_1.mp4
+
+# Seedance manual mode (Fallback)
+python ~/.claude/skills/video-gen/video_gen_tools.py video \
+  --backend seedance \
+  --prompt "Manually written time-segment prompt..." \
+  --image-list frame.png ref.jpg \
+  --duration 10 \
+  --output output.mp4
+
+# Veo3 text-to-video (Google Veo3, 4/6/8s high-quality shorts)
+python ~/.claude/skills/video-gen/video_gen_tools.py video \
+  --backend veo3 \
+  --prompt <description> \
+  --duration 8 \
+  --output generated/videos/shot.mp4
+
+# Veo3 image-to-video (First-frame control)
+python ~/.claude/skills/video-gen/video_gen_tools.py video \
+  --backend veo3 \
+  --image <first-frame-image> \
+  --prompt <description> \
+  --duration 8 \
+  --output generated/videos/shot.mp4
+
+# Music (Must pass --creative, reads prompt and style from creative.json)
 python ~/.claude/skills/video-gen/video_gen_tools.py music --creative creative/creative.json --output <output>
 
-# Narration (call by narration_segments)
-python ~/.claude/skills/video-gen/video_gen_tools.py tts --text <segment copy> --voice female_narrator --emotion gentle --output generated/narration/narr_1.mp3
+# Voiceover (Call by narration_segments)
+python ~/.claude/skills/video-gen/video_gen_tools.py tts --text <segment-script> --voice female_narrator --emotion gentle --output generated/narration/narr_1.mp3
 
 # Image generation
 python ~/.claude/skills/video-gen/video_gen_tools.py image --prompt <description> --aspect-ratio {aspect_ratio} --output <output>
 
-# Editing (concat must pass --storyboard, read aspect_ratio from storyboard.json)
-python ~/.claude/skills/video-gen/video_gen_editor.py concat --inputs <video list> --output <output> --storyboard storyboard/storyboard.json
+# Editing (concat must pass --storyboard, reads aspect_ratio from storyboard.json)
+python ~/.claude/skills/video-gen/video_gen_editor.py concat --inputs <video-list> --output <output> --storyboard storyboard/storyboard.json
 
-# Narration insertion (insert by overall_time_range)
+# Voiceover insertion (Insert by overall_time_range)
 python ~/.claude/skills/video-gen/video_gen_editor.py narration --video <video> --storyboard storyboard/storyboard.json --narration-dir generated/narration --output <output>
 
 # Other editing commands
@@ -900,11 +979,11 @@ python ~/.claude/skills/video-gen/video_gen_editor.py color --video <video> --pr
 │   ├── creative.json    # Creative plan
 │   └── decision_log.json # Decision records
 ├── storyboard/
-│   └── storyboard.json  # Storyboard script (includes narration_segments)
+│   └── storyboard.json  # Storyboard script (contains narration_segments)
 ├── generated/
 │   ├── videos/          # Generated videos
 │   ├── music/           # Generated music
-│   ├── narration/       # Generated narration audio
+│   ├── narration/       # Generated voiceover audio
 │   └── image/           # Generated images
 └── output/
     └── final.mp4        # Final video
@@ -914,13 +993,13 @@ python ~/.claude/skills/video-gen/video_gen_editor.py color --video <video> --pr
 
 ## Error Handling
 
-| Issue | Handling |
-|-------|----------|
-| Visual analysis fail | VisionClient fallback → Ask user |
+| Issue | Handling Method |
+|-------|-----------------|
+| Visual analysis failure | VisionClient fallback → Ask user |
 | API key not configured | Ask on first call |
-| API call fail | Retry 2 times → Ask user |
-| Video generation fail | Try other modes or use original materials |
-| Music generation fail | Generate silent video and notify |
+| API call failure | Retry 2 times → Ask user |
+| Video generation failure | Try other modes or use original materials |
+| Music generation failure | Generate silent video and inform |
 
 ---
 
