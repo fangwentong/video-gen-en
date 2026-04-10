@@ -120,7 +120,7 @@ Task Progress:
 First run setup to view current configuration status:
 
 ```bash
-python ~/.claude/skills/video-gen/video_gen_tools.py setup
+python video_gen_tools.py setup
 ```
 
 Output includes all available providers and their key configuration status. **If no video provider key is configured**, must guide user to select and configure:
@@ -145,16 +145,16 @@ After user selects, request corresponding API key, then save:
 
 ```bash
 # Example: User selects Seedance
-python ~/.claude/skills/video-gen/video_gen_tools.py setup --set-key SEEDANCE_API_KEY=sk-xxx
+python video_gen_tools.py setup --set-key SEEDANCE_API_KEY=sk-xxx
 
 # Example: User selects Kling Official
-python ~/.claude/skills/video-gen/video_gen_tools.py setup --set-key KLING_ACCESS_KEY=xxx KLING_SECRET_KEY=xxx
+python video_gen_tools.py setup --set-key KLING_ACCESS_KEY=xxx KLING_SECRET_KEY=xxx
 
 # Example: User selects fal
-python ~/.claude/skills/video-gen/video_gen_tools.py setup --set-key FAL_API_KEY=xxx
+python video_gen_tools.py setup --set-key FAL_API_KEY=xxx
 
 # Example: User selects Veo3
-python ~/.claude/skills/video-gen/video_gen_tools.py setup --set-key COMPASS_API_KEY=xxx
+python video_gen_tools.py setup --set-key COMPASS_API_KEY=xxx
 ```
 
 **Optional Services** (ask after saving key):
@@ -165,7 +165,7 @@ User can skip optional services.
 ### Step 2: Environment Check
 
 ```bash
-python ~/.claude/skills/video-gen/video_gen_tools.py check
+python video_gen_tools.py check
 ```
 
 - Basic dependencies (FFmpeg/Python/httpx) not passing → Stop and inform installation method
@@ -609,7 +609,7 @@ Execute video generation based on storyboard.json.
 **0. Storyboard Validation (Must Pass)**
 
 ```bash
-python ~/.claude/skills/video-gen/video_gen_tools.py validate --storyboard storyboard/storyboard.json
+python video_gen_tools.py validate --storyboard storyboard/storyboard.json
 ```
 
 Validation content: Whether Seedance duration is within 4-15s range, whether backend-mode matches, whether reference images exist, aspect_ratio format, whether API key is available.
@@ -834,7 +834,7 @@ Video segments may contain sync sound, sound effects, cannot be lost during conc
 Before concatenation, auto-check resolution/encoding/framerate, auto-normalize if inconsistent (1080x1920 / H.264 / 24fps).
 
 ```bash
-python ~/.claude/skills/video-gen/video_gen_editor.py concat --inputs video1.mp4 video2.mp4 --output final.mp4
+python video_gen_editor.py concat --inputs video1.mp4 video2.mp4 --output final.mp4
 ```
 
 ### Synthesis Flow
@@ -905,23 +905,23 @@ python video_gen_editor.py narration \
 
 ```bash
 # Environment check
-python ~/.claude/skills/video-gen/video_gen_tools.py check
+python video_gen_tools.py check
 
 # Storyboard validation (Must pass before Phase 4 execution)
-python ~/.claude/skills/video-gen/video_gen_tools.py validate --storyboard storyboard/storyboard.json
+python video_gen_tools.py validate --storyboard storyboard/storyboard.json
 
 # Video generation (Must read aspect_ratio from storyboard.json)
-python ~/.claude/skills/video-gen/video_gen_tools.py video --prompt <description> --aspect-ratio {aspect_ratio} --output <output>
+python video_gen_tools.py video --prompt <description> --aspect-ratio {aspect_ratio} --output <output>
 
 # Seedance auto assembly mode (Recommended: tool auto-calculates time segments, assembles prompt, arranges image_urls)
-python ~/.claude/skills/video-gen/video_gen_tools.py video \
+python video_gen_tools.py video \
   --backend seedance \
   --storyboard storyboard/storyboard.json \
   --scene scene_1 \
   --output generated/videos/scene_1.mp4
 
 # Seedance manual mode (Fallback)
-python ~/.claude/skills/video-gen/video_gen_tools.py video \
+python video_gen_tools.py video \
   --backend seedance \
   --prompt "Manually written time-segment prompt..." \
   --image-list frame.png ref.jpg \
@@ -929,14 +929,14 @@ python ~/.claude/skills/video-gen/video_gen_tools.py video \
   --output output.mp4
 
 # Veo3 text-to-video (Google Veo3, 4/6/8s high-quality shorts)
-python ~/.claude/skills/video-gen/video_gen_tools.py video \
+python video_gen_tools.py video \
   --backend veo3 \
   --prompt <description> \
   --duration 8 \
   --output generated/videos/shot.mp4
 
 # Veo3 image-to-video (First-frame control)
-python ~/.claude/skills/video-gen/video_gen_tools.py video \
+python video_gen_tools.py video \
   --backend veo3 \
   --image <first-frame-image> \
   --prompt <description> \
@@ -944,24 +944,24 @@ python ~/.claude/skills/video-gen/video_gen_tools.py video \
   --output generated/videos/shot.mp4
 
 # Music (Must pass --creative, reads prompt and style from creative.json)
-python ~/.claude/skills/video-gen/video_gen_tools.py music --creative creative/creative.json --output <output>
+python video_gen_tools.py music --creative creative/creative.json --output <output>
 
 # Voiceover (Call by narration_segments)
-python ~/.claude/skills/video-gen/video_gen_tools.py tts --text <segment-script> --voice female_narrator --emotion gentle --output generated/narration/narr_1.mp3
+python video_gen_tools.py tts --text <segment-script> --voice female_narrator --emotion gentle --output generated/narration/narr_1.mp3
 
 # Image generation
-python ~/.claude/skills/video-gen/video_gen_tools.py image --prompt <description> --aspect-ratio {aspect_ratio} --output <output>
+python video_gen_tools.py image --prompt <description> --aspect-ratio {aspect_ratio} --output <output>
 
 # Editing (concat must pass --storyboard, reads aspect_ratio from storyboard.json)
-python ~/.claude/skills/video-gen/video_gen_editor.py concat --inputs <video-list> --output <output> --storyboard storyboard/storyboard.json
+python video_gen_editor.py concat --inputs <video-list> --output <output> --storyboard storyboard/storyboard.json
 
 # Voiceover insertion (Insert by overall_time_range)
-python ~/.claude/skills/video-gen/video_gen_editor.py narration --video <video> --storyboard storyboard/storyboard.json --narration-dir generated/narration --output <output>
+python video_gen_editor.py narration --video <video> --storyboard storyboard/storyboard.json --narration-dir generated/narration --output <output>
 
 # Other editing commands
-python ~/.claude/skills/video-gen/video_gen_editor.py mix --video <video> --bgm <music> --output <output>
-python ~/.claude/skills/video-gen/video_gen_editor.py transition --inputs <v1> <v2> --type <type> --output <output>
-python ~/.claude/skills/video-gen/video_gen_editor.py color --video <video> --preset <preset> --output <output>
+python video_gen_editor.py mix --video <video> --bgm <music> --output <output>
+python video_gen_editor.py transition --inputs <v1> <v2> --type <type> --output <output>
+python video_gen_editor.py color --video <video> --preset <preset> --output <output>
 ```
 
 ---
